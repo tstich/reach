@@ -146,3 +146,47 @@ BOOST_AUTO_TEST_CASE( reqFileMessage )
 	auto secondMessage = Message::createReqFile(testPath);
 	BOOST_CHECK(message->messageId() != secondMessage->messageId());
 }
+
+
+/////////////////////////////////////
+/////////////////////////////////////
+/////////////////////////////////////
+
+BOOST_AUTO_TEST_CASE( fileInfoMessage )
+{
+	// UDP Packet as Struct
+	#pragma pack(push, 1)
+	struct {
+		uint8_t type;
+		uint64_t messageId;
+		uint64_t ufid;
+		uint64_t packetCount;
+	} messageData;
+	#pragma pack(pop)
+
+	// Create
+	uint64_t testUfid = 1234567;
+	uint64_t testPacketCount = 75234;
+	auto message = Message::createFileInfo(testUfid, testPacketCount);
+
+	// Data Layer
+	auto messageBuffer = message->asBuffer();
+	BOOST_CHECK_EQUAL(sizeof(messageData), boost::asio::buffer_size(messageBuffer));
+
+	boost::asio::buffer_copy(boost::asio::buffer(&messageData, sizeof(messageData)), messageBuffer); 
+	
+	BOOST_CHECK_EQUAL(messageData.type, Message::FILE_INFO);
+	BOOST_CHECK_EQUAL(messageData.messageId, message->messageId());
+	BOOST_CHECK_EQUAL(messageData.ufid, testUfid);
+
+	// Parse
+	auto parsedMessage = Message::fromBuffer(reinterpret_cast<uint8_t*>(&messageData));
+	BOOST_CHECK_EQUAL(parsedMessage->type(), Message::FILE_INFO);
+	BOOST_CHECK_EQUAL(parsedMessage->messageId(), message->messageId());
+	BOOST_CHECK_EQUAL(parsedMessage->ufid(), testUfid);
+
+
+	// Check Message ID is not the same for a second message
+	auto secondMessage = Message::createFileInfo(testUfid, testPacketCount);
+	BOOST_CHECK(message->messageId() != secondMessage->messageId());
+}

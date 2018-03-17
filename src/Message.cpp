@@ -1,5 +1,4 @@
 #include <Message.h>
-#include <Config.h>
 
 #define BOOST_LOG_DYN_LINK 1
 #include <boost/log/trivial.hpp>
@@ -43,6 +42,15 @@ std::shared_ptr<Message> Message::createReqFile(const char* path)
 	return message;
 }
 
+std::shared_ptr<Message> Message::createFileInfo(uint64_t ufid, uint64_t packetCount)
+{
+	std::shared_ptr<Message> message(new Message(FILE_INFO));
+	message->m_messageId = generateMessageId();
+	message->m_ufid = ufid;
+	message->m_packetCount = packetCount;
+	return message;
+}
+
 uint64_t Message::generateMessageId()
 {
 	return m_nextMessageId++;
@@ -74,6 +82,14 @@ std::shared_ptr<Message> Message::fromBuffer(const uint8_t* data)
 		data += PATH_LENGTH;
 	}
 
+	if( message->m_type == FILE_INFO ) {
+		message->m_ufid = *reinterpret_cast<const uint64_t*>(data);
+		data += sizeof(uint64_t);		
+		message->m_packetCount = *reinterpret_cast<const uint64_t*>(data);
+		data += sizeof(uint64_t);		
+	}
+
+
 	return message;
 }
 
@@ -95,6 +111,11 @@ std::vector<boost::asio::const_buffer> Message::asBuffer() const {
 
 	if( m_type == REQ_FILE ) {
 		composite_buffer.push_back(boost::asio::const_buffer(&m_path, sizeof(m_path)));				
+	}
+
+	if( m_type == FILE_INFO ) {
+		composite_buffer.push_back(boost::asio::const_buffer(&m_ufid, sizeof(m_ufid)));				
+		composite_buffer.push_back(boost::asio::const_buffer(&m_packetCount, sizeof(m_packetCount)));				
 	}
 
 	return composite_buffer;

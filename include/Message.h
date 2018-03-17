@@ -28,6 +28,7 @@ public:
 	static std::shared_ptr<Message> createPing();
 	static std::shared_ptr<Message> createAlive();	
 	static std::shared_ptr<Message> createReqFile(const char* path);
+	static std::shared_ptr<Message> createFileInfo(uint64_t ufid, uint64_t packetCount);
 
 	// Message from Buffer
 	static std::shared_ptr<Message> fromBuffer(const uint8_t* data);
@@ -40,6 +41,8 @@ public:
 	TYPE type() const { return m_type; }
 	uint64_t messageId() const { return m_messageId; }
 	const char* path() const { return m_path; }
+	uint64_t ufid() const { return m_ufid; }
+	uint64_t packetCount() const { return m_packetCount; }
 
 protected:
 	Message(TYPE type);
@@ -55,6 +58,8 @@ private:
 	uint64_t m_version;
 	uint64_t m_messageId;
 	char m_path[PATH_LENGTH];
+	uint64_t m_ufid;
+	uint64_t m_packetCount;
 
 
 	static uint64_t m_nextMessageId;
