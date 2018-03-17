@@ -14,7 +14,7 @@ add_library(reach_common STATIC src/Message.cpp)
 target_link_libraries(reach_common ${Boost_LIBRARIES})
 
 # Server Application
-
+include_directories(.)
 add_executable(reach_server server.cpp)
 target_link_libraries(reach_server reach_common)
 

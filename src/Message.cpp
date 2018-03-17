@@ -9,14 +9,19 @@ m_type(type)
 
 }
 
-std::unique_ptr<Message> Message::create_ping()
+std::shared_ptr<Message> Message::createPing()
 {
-	return std::unique_ptr<Message>(new Message(PING));
+	return std::shared_ptr<Message>(new Message(PING));
 }
 
-std::unique_ptr<Message> Message::fromBuffer(const uint8_t* data)
+bool Message::isChecked() const 
 {
-	std::unique_ptr<Message> message(new Message(static_cast<TYPE>(data[0])));
+	return m_type == REQ_FILE || m_type == FILE_INFO;
+}
+
+std::shared_ptr<Message> Message::fromBuffer(const uint8_t* data)
+{
+	std::shared_ptr<Message> message(new Message(static_cast<TYPE>(data[0])));
 	BOOST_LOG_TRIVIAL(debug) << "Message::fromBuffer: " << message->m_type;
 	return message;
 }
