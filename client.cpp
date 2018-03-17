@@ -8,7 +8,7 @@
 #include <boost/asio.hpp>
 #include <boost/bind.hpp>
 
-#include <config.h>
+#include <Config.h>
 #include <Message.h>
 
 using boost::asio::ip::udp;

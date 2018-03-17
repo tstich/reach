@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <random>
 #include <boost/asio.hpp>
 
 //////////////////////////////
@@ -24,6 +25,7 @@ public:
 	// Message Specific Create
 	static std::shared_ptr<Message> createACK(uint64_t messageId);
 	static std::shared_ptr<Message> createPing();
+	static std::shared_ptr<Message> createAlive();
 
 	// Message from Buffer
 	static std::shared_ptr<Message> fromBuffer(const uint8_t* data);
@@ -40,6 +42,7 @@ protected:
 	Message(TYPE type);
 
 private:
+	static uint64_t generateMessageId();
 
 //////////////////////////////
 // Variables
@@ -48,4 +51,6 @@ private:
 	TYPE m_type;
 	uint64_t m_version;
 	uint64_t m_messageId;
+
+	static uint64_t m_nextMessageId;
 };
