@@ -32,7 +32,14 @@ std::shared_ptr<Message> Message::createACK(uint64_t messageId)
 std::shared_ptr<Message> Message::createAlive()
 {
 	std::shared_ptr<Message> message(new Message(ALIVE));
+	return message;
+}
+
+std::shared_ptr<Message> Message::createReqFile(const char* path)
+{
+	std::shared_ptr<Message> message(new Message(REQ_FILE));
 	message->m_messageId = generateMessageId();
+	strncpy(message->m_path, path, PATH_LENGTH);
 	return message;
 }
 
@@ -52,7 +59,7 @@ std::shared_ptr<Message> Message::fromBuffer(const uint8_t* data)
 	data += sizeof(TYPE);
 	BOOST_LOG_TRIVIAL(debug) << "Message::fromBuffer: " << message->m_type;
 
-	if( message->m_type == ACK || message->m_type == ALIVE) {
+	if( message->m_type == ACK || message->isChecked() ) {
 		message->m_messageId = *reinterpret_cast<const uint64_t*>(data);
 		data += sizeof(uint64_t);
 	} 	
@@ -60,6 +67,11 @@ std::shared_ptr<Message> Message::fromBuffer(const uint8_t* data)
 	if( message->m_type == ALIVE ) {
 		message->m_version = *reinterpret_cast<const uint64_t*>(data);
 		data += sizeof(uint64_t);		
+	}
+
+	if( message->m_type == REQ_FILE ) {
+		strncpy(message->m_path, reinterpret_cast<const char*>(data), PATH_LENGTH);
+		data += PATH_LENGTH;
 	}
 
 	return message;
@@ -73,12 +85,16 @@ std::vector<boost::asio::const_buffer> Message::asBuffer() const {
 
 	composite_buffer.push_back(boost::asio::const_buffer(&m_type, sizeof(m_type)));
 
-	if( m_type == ACK || m_type == ALIVE ) {
+	if( m_type == ACK || isChecked() ) {
 		composite_buffer.push_back(boost::asio::const_buffer(&m_messageId, sizeof(m_messageId)));
 	} 
 
 	if( m_type == ALIVE ) {
 		composite_buffer.push_back(boost::asio::const_buffer(&m_version, sizeof(m_version)));		
+	}
+
+	if( m_type == REQ_FILE ) {
+		composite_buffer.push_back(boost::asio::const_buffer(&m_path, sizeof(m_path)));				
 	}
 
 	return composite_buffer;

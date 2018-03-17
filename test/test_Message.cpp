@@ -84,7 +84,6 @@ BOOST_AUTO_TEST_CASE( aliveMessage )
 	#pragma pack(push, 1)
 	struct {
 		uint8_t type;
-		uint64_t messageId;
 		uint64_t version;
 	} messageData;
 	#pragma pack(pop)
@@ -100,17 +99,50 @@ BOOST_AUTO_TEST_CASE( aliveMessage )
 	
 	BOOST_CHECK_EQUAL(messageData.type, Message::ALIVE);
 	BOOST_CHECK_EQUAL(messageData.version, REACH_VERSION);
-	BOOST_CHECK_EQUAL(messageData.messageId, message->messageId());
 
 	// Parse
 	auto parsedMessage = Message::fromBuffer(reinterpret_cast<uint8_t*>(&messageData));
 	BOOST_CHECK_EQUAL(parsedMessage->type(), Message::ALIVE);
-	BOOST_CHECK_EQUAL(message->messageId(), parsedMessage->messageId());
 	BOOST_CHECK_EQUAL(messageData.version, REACH_VERSION);
+}
+
+/////////////////////////////////////
+/////////////////////////////////////
+/////////////////////////////////////
+
+BOOST_AUTO_TEST_CASE( reqFileMessage )
+{
+	// UDP Packet as Struct
+	#pragma pack(push, 1)
+	struct {
+		uint8_t type;
+		uint64_t messageId;
+		char path[PATH_LENGTH];
+	} messageData;
+	#pragma pack(pop)
+
+	// Create
+	const char* testPath = "/some/random/file";
+	auto message = Message::createReqFile(testPath);
+
+	// Data Layer
+	auto messageBuffer = message->asBuffer();
+	BOOST_CHECK_EQUAL(sizeof(messageData), boost::asio::buffer_size(messageBuffer));
+
+	boost::asio::buffer_copy(boost::asio::buffer(&messageData, sizeof(messageData)), messageBuffer); 
+	
+	BOOST_CHECK_EQUAL(messageData.type, Message::REQ_FILE);
+	BOOST_CHECK_EQUAL(messageData.messageId, message->messageId());
+	BOOST_CHECK_EQUAL(messageData.path, testPath);
+
+	// Parse
+	auto parsedMessage = Message::fromBuffer(reinterpret_cast<uint8_t*>(&messageData));
+	BOOST_CHECK_EQUAL(parsedMessage->type(), Message::REQ_FILE);
+	BOOST_CHECK_EQUAL(parsedMessage->messageId(), message->messageId());
+	BOOST_CHECK_EQUAL(parsedMessage->path(), testPath);
 
 
 	// Check Message ID is not the same for a second message
-	auto secondMessage = Message::createAlive();
+	auto secondMessage = Message::createReqFile(testPath);
 	BOOST_CHECK(message->messageId() != secondMessage->messageId());
-
 }

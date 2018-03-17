@@ -3,6 +3,7 @@
 #include <memory>
 #include <random>
 #include <boost/asio.hpp>
+#include <Config.h>
 
 //////////////////////////////
 // The message class represents all message types of our protocol. 
@@ -25,7 +26,8 @@ public:
 	// Message Specific Create
 	static std::shared_ptr<Message> createACK(uint64_t messageId);
 	static std::shared_ptr<Message> createPing();
-	static std::shared_ptr<Message> createAlive();
+	static std::shared_ptr<Message> createAlive();	
+	static std::shared_ptr<Message> createReqFile(const char* path);
 
 	// Message from Buffer
 	static std::shared_ptr<Message> fromBuffer(const uint8_t* data);
@@ -37,6 +39,7 @@ public:
 	bool isChecked() const;
 	TYPE type() const { return m_type; }
 	uint64_t messageId() const { return m_messageId; }
+	const char* path() const { return m_path; }
 
 protected:
 	Message(TYPE type);
@@ -51,6 +54,8 @@ private:
 	TYPE m_type;
 	uint64_t m_version;
 	uint64_t m_messageId;
+	char m_path[PATH_LENGTH];
+
 
 	static uint64_t m_nextMessageId;
 };
