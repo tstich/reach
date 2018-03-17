@@ -18,15 +18,16 @@ class ReachClient
 public:
   ReachClient(boost::asio::io_service& io_service)
     : socket_(io_service), 
-      receiver_endpoint_(udp::v4(), REACH_PORT)
+      receiver_endpoint_(udp::v4(), REACH_PORT),
+      ping_timer_(io_service, boost::posix_time::seconds(PING_INTERVAL))
   {
     socket_.open(udp::v4());
 
-    start_send();
+    ping_timer_.async_wait(boost::bind(&ReachClient::sendPing, this, boost::asio::placeholders::error));
   }
 
 private:
-  void start_send()
+  void sendPing(const boost::system::error_code& /*e*/)
   {
     std::shared_ptr<Message> message = Message::createPing(); 
 
@@ -34,6 +35,9 @@ private:
         boost::bind(&ReachClient::handle_send, this, message,
           boost::asio::placeholders::error,
           boost::asio::placeholders::bytes_transferred));
+
+    ping_timer_.expires_at(ping_timer_.expires_at() + boost::posix_time::seconds(PING_INTERVAL));
+    ping_timer_.async_wait(boost::bind(&ReachClient::sendPing, this, boost::asio::placeholders::error));
   }
 
 
@@ -46,6 +50,7 @@ private:
   udp::socket socket_;
   udp::endpoint receiver_endpoint_;
   boost::array<uint8_t, MAX_MESSAGE_SIZE> recv_buffer_;
+  boost::asio::deadline_timer ping_timer_;
 };
 
 int main()
