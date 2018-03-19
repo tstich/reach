@@ -14,6 +14,7 @@ public:
 
 	void add(uint64_t number);
 	void add(int64_t start, int64_t end);
+	void add(Range other);
 
 	uint8_t intervalCount() const { return static_cast<uint8_t>(m_intervals.size()); }
 

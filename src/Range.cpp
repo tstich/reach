@@ -31,6 +31,15 @@ void Range::add(int64_t start, int64_t end)
 	mergeIntervals();
 }
 
+void Range::add(Range other)
+{
+	for( Interval addition : other.m_intervals ) {
+		m_intervals.insert( std::upper_bound( m_intervals.begin(), m_intervals.end(), addition), addition );
+	}
+
+	mergeIntervals();
+}
+
 
 void Range::mergeIntervals()
 {

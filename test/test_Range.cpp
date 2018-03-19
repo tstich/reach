@@ -97,3 +97,30 @@ BOOST_AUTO_TEST_CASE( addInterval )
 		BOOST_CHECK(it == testRange.end());	
 	}
 }
+
+BOOST_AUTO_TEST_CASE( addRange )
+{
+	Range testRange(0,3);
+	testRange.add(4,8);
+
+	Range testRange2(1,7);
+	testRange2.add(10,13);
+
+	testRange.add(testRange2);
+
+
+	BOOST_CHECK_EQUAL(testRange.intervalCount(), 2);	
+	{
+		auto it = testRange.begin();
+		for( uint64_t i = 0; i < 8; i++, it++) 
+		{
+			BOOST_CHECK_EQUAL(*it, i);	
+		}
+		for( uint64_t i = 10; i < 13; i++, it++) 
+		{
+			BOOST_CHECK_EQUAL(*it, i);	
+		}
+		BOOST_CHECK(it == testRange.end());			
+	}
+
+}
