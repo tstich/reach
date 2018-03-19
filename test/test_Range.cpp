@@ -124,3 +124,77 @@ BOOST_AUTO_TEST_CASE( addRange )
 	}
 
 }
+
+
+BOOST_AUTO_TEST_CASE( subtractNumber )
+{
+	Range testRange(0,10);
+
+	testRange.subtract(5);
+
+	BOOST_CHECK_EQUAL(testRange.intervalCount(), 2);		
+	{
+		auto it = testRange.begin();
+		for( uint64_t i = 0; i < 5; i++, it++) 
+		{
+			BOOST_CHECK_EQUAL(*it, i);	
+		}
+		for( uint64_t i = 6; i < 10; i++, it++) 
+		{
+			BOOST_CHECK_EQUAL(*it, i);	
+		}
+		BOOST_CHECK(it == testRange.end());			
+	}
+	
+}
+
+BOOST_AUTO_TEST_CASE( subtractInterval )
+{
+	Range testRange(0,10);
+
+	testRange.subtract(3,5);
+
+	BOOST_CHECK_EQUAL(testRange.intervalCount(), 2);		
+	{
+		auto it = testRange.begin();
+		for( uint64_t i = 0; i < 3; i++, it++) 
+		{
+			BOOST_CHECK_EQUAL(*it, i);	
+		}
+		for( uint64_t i = 5; i < 10; i++, it++) 
+		{
+			BOOST_CHECK_EQUAL(*it, i);	
+		}
+		BOOST_CHECK(it == testRange.end());			
+	}
+	
+}
+
+BOOST_AUTO_TEST_CASE( subtractRange )
+{
+	Range testRange(0,10);
+
+	Range testRange2(1,3);
+	testRange2.add(7,8);
+
+	testRange.subtract(testRange2);
+
+	BOOST_CHECK_EQUAL(testRange.intervalCount(), 3);		
+	{
+		auto it = testRange.begin();
+		for( uint64_t i = 0; i < 1; i++, it++) 
+		{
+			BOOST_CHECK_EQUAL(*it, i);	
+		}
+		for( uint64_t i = 3; i < 7; i++, it++) 
+		{
+			BOOST_CHECK_EQUAL(*it, i);	
+		}
+		for( uint64_t i = 8; i < 10; i++, it++) 
+		{
+			BOOST_CHECK_EQUAL(*it, i);	
+		}
+		BOOST_CHECK(it == testRange.end());			
+	}
+	
+}

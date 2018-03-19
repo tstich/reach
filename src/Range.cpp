@@ -31,7 +31,7 @@ void Range::add(int64_t start, int64_t end)
 	mergeIntervals();
 }
 
-void Range::add(Range other)
+void Range::add(const Range &other)
 {
 	for( Interval addition : other.m_intervals ) {
 		m_intervals.insert( std::upper_bound( m_intervals.begin(), m_intervals.end(), addition), addition );
@@ -40,6 +40,64 @@ void Range::add(Range other)
 	mergeIntervals();
 }
 
+void Range::subtract(uint64_t number)
+{
+	std::deque<Interval> unrolled;
+	for(auto it = begin(); it != end(); ++it) {
+		unrolled.push_back(Interval(*it, *it + 1));
+	}
+
+	m_intervals.clear();
+	Interval subtraction(number, number + 1);
+	std::set_difference(unrolled.begin(), unrolled.end(), &subtraction, &subtraction+1, 
+		std::inserter(m_intervals, m_intervals.begin()));
+
+	mergeIntervals();
+}
+
+void Range::subtract(int64_t start, int64_t end)
+{
+	std::deque<Interval> unrolled;
+	for(auto it = this->begin(); it != this->end(); ++it) {
+		unrolled.push_back(Interval(*it, *it + 1));
+	}
+
+	m_intervals.clear();
+
+	std::vector<Interval> unrolled_subtraction;
+	for(uint64_t i = start; i < end; ++i) {
+		unrolled_subtraction.push_back(Interval(i, i+1));
+	}
+
+	std::set_difference(unrolled.begin(), unrolled.end(), 
+		unrolled_subtraction.begin(), unrolled_subtraction.end(), 
+		std::inserter(m_intervals, m_intervals.begin()));
+
+	mergeIntervals();
+}
+
+void Range::subtract(const Range &other)
+{
+	std::deque<Interval> unrolled;
+	for(auto it = this->begin(); it != this->end(); ++it) {
+		unrolled.push_back(Interval(*it, *it + 1));
+	}
+
+	m_intervals.clear();
+
+	std::vector<Interval> unrolled_subtraction;
+	for(Interval v: other.m_intervals) {
+		for(uint64_t i = v.first; i < v.second; ++i) {
+			unrolled_subtraction.push_back(Interval(i, i+1));
+		}		
+	}
+
+	std::set_difference(unrolled.begin(), unrolled.end(), 
+		unrolled_subtraction.begin(), unrolled_subtraction.end(), 
+		std::inserter(m_intervals, m_intervals.begin()));
+
+	mergeIntervals();
+}
 
 void Range::mergeIntervals()
 {
