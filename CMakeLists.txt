@@ -10,7 +10,7 @@ include_directories(include)
 
 # Shared Code
 
-add_library(reach_common STATIC src/Message.cpp)
+add_library(reach_common STATIC src/Message.cpp src/Range.cpp)
 target_link_libraries(reach_common ${Boost_LIBRARIES})
 
 # Server Application

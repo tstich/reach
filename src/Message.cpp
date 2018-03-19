@@ -11,9 +11,6 @@ Message::Message(Message::TYPE type) :
 m_type(type),
 m_version(REACH_VERSION)
 {
-    std::random_device rd;
-    std::mt19937 gen(rd());
-
 }
 
 std::shared_ptr<Message> Message::createPing()
