@@ -34,11 +34,11 @@ private:
   }
 
   void handle_receive(const boost::system::error_code& error,
-      std::size_t /*bytes_transferred*/)
+      std::size_t messageSize)
   {
     if (!error || error == boost::asio::error::message_size)
     {
-      auto message = Message::fromBuffer(recv_buffer_.data());
+      auto message = Message::fromBuffer(recv_buffer_.data(), messageSize);
 
       // socket_.async_send_to(boost::asio::buffer(*message), remote_endpoint_,
       //     boost::bind(&udp_server::handle_send, this, message,

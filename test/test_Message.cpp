@@ -39,7 +39,7 @@ BOOST_AUTO_TEST_CASE( ackMessage )
 	BOOST_CHECK_EQUAL(messageData.messageId, testId);
 
 	// Parse
-	auto parsedMessage = Message::fromBuffer(reinterpret_cast<uint8_t*>(&messageData));
+	auto parsedMessage = Message::fromBuffer(reinterpret_cast<uint8_t*>(&messageData), sizeof(messageData));
 	BOOST_CHECK_EQUAL(parsedMessage->type(), Message::ACK);
 	BOOST_CHECK_EQUAL(parsedMessage->messageId(), testId);
 
@@ -70,7 +70,7 @@ BOOST_AUTO_TEST_CASE( pingMessage )
 	BOOST_CHECK_EQUAL(messageData.type, Message::PING);
 
 	// Parse
-	auto parsedMessage = Message::fromBuffer(reinterpret_cast<uint8_t*>(&messageData));
+	auto parsedMessage = Message::fromBuffer(reinterpret_cast<uint8_t*>(&messageData), sizeof(messageData));
 	BOOST_CHECK_EQUAL(parsedMessage->type(), Message::PING);
 }
 
@@ -101,7 +101,7 @@ BOOST_AUTO_TEST_CASE( aliveMessage )
 	BOOST_CHECK_EQUAL(messageData.version, REACH_VERSION);
 
 	// Parse
-	auto parsedMessage = Message::fromBuffer(reinterpret_cast<uint8_t*>(&messageData));
+	auto parsedMessage = Message::fromBuffer(reinterpret_cast<uint8_t*>(&messageData), sizeof(messageData));
 	BOOST_CHECK_EQUAL(parsedMessage->type(), Message::ALIVE);
 	BOOST_CHECK_EQUAL(messageData.version, REACH_VERSION);
 }
@@ -136,7 +136,7 @@ BOOST_AUTO_TEST_CASE( reqFileMessage )
 	BOOST_CHECK_EQUAL(messageData.path, testPath);
 
 	// Parse
-	auto parsedMessage = Message::fromBuffer(reinterpret_cast<uint8_t*>(&messageData));
+	auto parsedMessage = Message::fromBuffer(reinterpret_cast<uint8_t*>(&messageData), sizeof(messageData));
 	BOOST_CHECK_EQUAL(parsedMessage->type(), Message::REQ_FILE);
 	BOOST_CHECK_EQUAL(parsedMessage->messageId(), message->messageId());
 	BOOST_CHECK_EQUAL(parsedMessage->path(), testPath);
@@ -184,7 +184,7 @@ BOOST_AUTO_TEST_CASE( fileInfoMessage )
 	BOOST_CHECK_EQUAL(messageData.packetSize, testPacketSize);
 
 	// Parse
-	auto parsedMessage = Message::fromBuffer(reinterpret_cast<uint8_t*>(&messageData));
+	auto parsedMessage = Message::fromBuffer(reinterpret_cast<uint8_t*>(&messageData), sizeof(messageData));
 	BOOST_CHECK_EQUAL(parsedMessage->type(), Message::FILE_INFO);
 	BOOST_CHECK_EQUAL(parsedMessage->messageId(), message->messageId());
 	BOOST_CHECK_EQUAL(parsedMessage->ufid(), testUfid);
@@ -232,7 +232,7 @@ BOOST_AUTO_TEST_CASE( requestfilePacketsMessage )
 	BOOST_CHECK_EQUAL(messageData.b0, 19);
 
 	// Parse
-	auto parsedMessage = Message::fromBuffer(reinterpret_cast<uint8_t*>(&messageData));
+	auto parsedMessage = Message::fromBuffer(reinterpret_cast<uint8_t*>(&messageData), sizeof(messageData));
 	BOOST_CHECK_EQUAL(parsedMessage->type(), Message::REQ_FILE_PACKETS);
 	BOOST_CHECK_EQUAL(parsedMessage->ufid(), testUfid);
 	auto it = parsedMessage->packets().begin();
@@ -242,4 +242,55 @@ BOOST_AUTO_TEST_CASE( requestfilePacketsMessage )
 	}
 	BOOST_CHECK(it == parsedMessage->packets().end());	
 
+}
+
+
+/////////////////////////////////////
+/////////////////////////////////////
+/////////////////////////////////////
+uint8_t RandomNumber () { return static_cast<uint8_t>(std::rand()%255); }
+
+BOOST_AUTO_TEST_CASE( filePacketMessage )
+{
+	// UDP Packet as Struct
+	#pragma pack(push, 1)
+	struct {
+		uint8_t type;
+		uint64_t ufid;
+		uint64_t packetId;
+		uint8_t payload[16];
+	} messageData;
+	#pragma pack(pop)
+
+	// Create
+	uint64_t testUfid = 1234567;
+	uint64_t testPacketId = 123;
+	std::vector<uint8_t> testPayload(16);
+	std::generate (testPayload.begin(), testPayload.end(), RandomNumber);
+
+	auto message = Message::createFilePacket(testUfid, testPacketId, testPayload);
+
+	// Data Layer
+	auto messageBuffer = message->asBuffer();
+	BOOST_CHECK_EQUAL(sizeof(messageData), boost::asio::buffer_size(messageBuffer));
+
+	boost::asio::buffer_copy(boost::asio::buffer(&messageData, sizeof(messageData)), messageBuffer); 
+	
+	BOOST_CHECK_EQUAL(messageData.type, Message::FILE_PACKET);
+	BOOST_CHECK_EQUAL(messageData.ufid, testUfid);
+	BOOST_CHECK_EQUAL(messageData.packetId, message->packetId());
+	for( int i = 0; i < 16; ++i ) {
+		BOOST_CHECK_EQUAL(messageData.payload[i], testPayload[i]);
+	}
+
+	// Parse
+	auto parsedMessage = Message::fromBuffer(reinterpret_cast<uint8_t*>(&messageData), sizeof(messageData));
+	BOOST_CHECK_EQUAL(parsedMessage->type(), Message::FILE_PACKET);
+	BOOST_CHECK_EQUAL(parsedMessage->ufid(), testUfid);
+	BOOST_CHECK_EQUAL(parsedMessage->packetId(), testPacketId);
+	auto parsedPayload = parsedMessage->payload();
+	BOOST_CHECK_EQUAL(parsedPayload.size(), 16);
+	for( int i = 0; i < 16; ++i ) {
+		BOOST_CHECK_EQUAL(messageData.payload[i], parsedPayload[i]);
+	}
 }

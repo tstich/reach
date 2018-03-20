@@ -31,9 +31,10 @@ public:
 	static std::shared_ptr<Message> createReqFile(const char* path);
 	static std::shared_ptr<Message> createFileInfo(uint64_t ufid, uint64_t packetCount, uint64_t packetSize);
 	static std::shared_ptr<Message> createRequestFilePackets(uint64_t ufid, Range packets);
+	static std::shared_ptr<Message> createFilePacket(uint64_t ufid, uint64_t packetId, std::vector<uint8_t> payload);
 
 	// Message from Buffer
-	static std::shared_ptr<Message> fromBuffer(const uint8_t* data);
+	static std::shared_ptr<Message> fromBuffer(const uint8_t* data, size_t length);
 
 	// Message to Buffer
 	std::vector<boost::asio::const_buffer> asBuffer() const;
@@ -47,6 +48,9 @@ public:
 	uint64_t packetCount() const { return m_packetCount; }
 	uint64_t packetSize() const { return m_packetSize; }
 	Range packets() const { return m_packets; }
+
+	uint64_t packetId() const { return m_packetId; }
+	std::vector<uint8_t> payload() const { return m_payload; }
 
 protected:
 	Message(TYPE type);
@@ -66,6 +70,8 @@ private:
 	uint64_t m_packetCount;
 	uint64_t m_packetSize;
 	Range m_packets;
+	uint64_t m_packetId;
+	std::vector<uint8_t> m_payload;
 
 
 	static uint64_t m_nextMessageId;
