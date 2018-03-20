@@ -190,3 +190,50 @@ BOOST_AUTO_TEST_CASE( fileInfoMessage )
 	auto secondMessage = Message::createFileInfo(testUfid, testPacketCount);
 	BOOST_CHECK(message->messageId() != secondMessage->messageId());
 }
+
+/////////////////////////////////////
+/////////////////////////////////////
+/////////////////////////////////////
+
+BOOST_AUTO_TEST_CASE( requestfilePacketsMessage )
+{
+	// UDP Packet as Struct
+	#pragma pack(push, 1)
+	struct {
+		uint8_t type;
+		uint64_t ufid;
+		uint8_t numberIntervals;
+		uint64_t a0;
+		uint64_t b0;
+	} messageData;
+	#pragma pack(pop)
+
+	// Create
+	uint64_t testUfid = 1234567;
+	Range testRange(2,19);
+	auto message = Message::createRequestFilePackets(testUfid, testRange);
+
+	// Data Layer
+	auto messageBuffer = message->asBuffer();
+	BOOST_CHECK_EQUAL(sizeof(messageData), boost::asio::buffer_size(messageBuffer));
+
+	boost::asio::buffer_copy(boost::asio::buffer(&messageData, sizeof(messageData)), messageBuffer); 
+	
+	BOOST_CHECK_EQUAL(messageData.type, Message::REQ_FILE_PACKETS);
+	BOOST_CHECK_EQUAL(messageData.ufid, testUfid);
+	BOOST_CHECK_EQUAL(messageData.numberIntervals, 1);
+	BOOST_CHECK_EQUAL(messageData.a0, 2);
+	BOOST_CHECK_EQUAL(messageData.b0, 19);
+
+	// Parse
+	auto parsedMessage = Message::fromBuffer(reinterpret_cast<uint8_t*>(&messageData));
+	BOOST_CHECK_EQUAL(parsedMessage->type(), Message::REQ_FILE_PACKETS);
+	BOOST_CHECK_EQUAL(parsedMessage->ufid(), testUfid);
+	auto it = parsedMessage->packets().begin();
+	for( uint64_t i = 2; i < 19; i++, it++) 
+	{
+		BOOST_CHECK_EQUAL(*it, i);	
+	}
+	BOOST_CHECK(it == parsedMessage->packets().end());	
+
+}

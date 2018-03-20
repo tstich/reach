@@ -48,6 +48,14 @@ std::shared_ptr<Message> Message::createFileInfo(uint64_t ufid, uint64_t packetC
 	return message;
 }
 
+std::shared_ptr<Message> Message::createRequestFilePackets(uint64_t ufid, Range packets)
+{
+	std::shared_ptr<Message> message(new Message(REQ_FILE_PACKETS));
+	message->m_ufid = ufid;
+	message->m_packets = packets;
+	return message;
+}
+
 uint64_t Message::generateMessageId()
 {
 	return m_nextMessageId++;
@@ -79,13 +87,19 @@ std::shared_ptr<Message> Message::fromBuffer(const uint8_t* data)
 		data += PATH_LENGTH;
 	}
 
-	if( message->m_type == FILE_INFO ) {
+	if( message->m_type == FILE_INFO || message->m_type == REQ_FILE_PACKETS ) {
 		message->m_ufid = *reinterpret_cast<const uint64_t*>(data);
 		data += sizeof(uint64_t);		
+	}
+
+	if( message->m_type == FILE_INFO ) {
 		message->m_packetCount = *reinterpret_cast<const uint64_t*>(data);
 		data += sizeof(uint64_t);		
 	}
 
+	if( message->m_type == REQ_FILE_PACKETS ) {
+		message->m_packets = *Range::fromBuffer(data);
+	}
 
 	return message;
 }
@@ -110,9 +124,17 @@ std::vector<boost::asio::const_buffer> Message::asBuffer() const {
 		composite_buffer.push_back(boost::asio::const_buffer(&m_path, sizeof(m_path)));				
 	}
 
-	if( m_type == FILE_INFO ) {
+	if( m_type == FILE_INFO || m_type == REQ_FILE_PACKETS ) {
 		composite_buffer.push_back(boost::asio::const_buffer(&m_ufid, sizeof(m_ufid)));				
+	}
+
+	if( m_type == FILE_INFO ) {
 		composite_buffer.push_back(boost::asio::const_buffer(&m_packetCount, sizeof(m_packetCount)));				
+	}
+
+	if( m_type == REQ_FILE_PACKETS ) {
+		auto rangeBuffer = m_packets.asBuffer();
+		composite_buffer.insert(composite_buffer.end(), rangeBuffer.begin(), rangeBuffer.end());
 	}
 
 	return composite_buffer;

@@ -4,6 +4,7 @@
 #include <random>
 #include <boost/asio.hpp>
 #include <Config.h>
+#include <Range.h>
 
 //////////////////////////////
 // The message class represents all message types of our protocol. 
@@ -29,6 +30,7 @@ public:
 	static std::shared_ptr<Message> createAlive();	
 	static std::shared_ptr<Message> createReqFile(const char* path);
 	static std::shared_ptr<Message> createFileInfo(uint64_t ufid, uint64_t packetCount);
+	static std::shared_ptr<Message> createRequestFilePackets(uint64_t ufid, Range packets);
 
 	// Message from Buffer
 	static std::shared_ptr<Message> fromBuffer(const uint8_t* data);
@@ -43,6 +45,7 @@ public:
 	const char* path() const { return m_path; }
 	uint64_t ufid() const { return m_ufid; }
 	uint64_t packetCount() const { return m_packetCount; }
+	Range packets() const { return m_packets; }
 
 protected:
 	Message(TYPE type);
@@ -60,6 +63,7 @@ private:
 	char m_path[PATH_LENGTH];
 	uint64_t m_ufid;
 	uint64_t m_packetCount;
+	Range m_packets;
 
 
 	static uint64_t m_nextMessageId;
