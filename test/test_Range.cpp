@@ -28,6 +28,10 @@ BOOST_AUTO_TEST_CASE( constructors )
 	}
 }
 
+/////////////////////////////////////
+/////////////////////////////////////
+/////////////////////////////////////
+
 
 BOOST_AUTO_TEST_CASE( iterator )
 {
@@ -47,6 +51,10 @@ BOOST_AUTO_TEST_CASE( iterator )
 	}
 }
 
+/////////////////////////////////////
+/////////////////////////////////////
+/////////////////////////////////////
+
 
 BOOST_AUTO_TEST_CASE( addNumber )
 {
@@ -64,6 +72,11 @@ BOOST_AUTO_TEST_CASE( addNumber )
 
 	BOOST_CHECK_EQUAL(testRange.intervalCount(), 2);	
 }
+
+/////////////////////////////////////
+/////////////////////////////////////
+/////////////////////////////////////
+
 
 BOOST_AUTO_TEST_CASE( addInterval )
 {
@@ -98,6 +111,11 @@ BOOST_AUTO_TEST_CASE( addInterval )
 	}
 }
 
+/////////////////////////////////////
+/////////////////////////////////////
+/////////////////////////////////////
+
+
 BOOST_AUTO_TEST_CASE( addRange )
 {
 	Range testRange(0,3);
@@ -125,6 +143,9 @@ BOOST_AUTO_TEST_CASE( addRange )
 
 }
 
+/////////////////////////////////////
+/////////////////////////////////////
+/////////////////////////////////////
 
 BOOST_AUTO_TEST_CASE( subtractNumber )
 {
@@ -148,6 +169,11 @@ BOOST_AUTO_TEST_CASE( subtractNumber )
 	
 }
 
+/////////////////////////////////////
+/////////////////////////////////////
+/////////////////////////////////////
+
+
 BOOST_AUTO_TEST_CASE( subtractInterval )
 {
 	Range testRange(0,10);
@@ -169,6 +195,11 @@ BOOST_AUTO_TEST_CASE( subtractInterval )
 	}
 	
 }
+
+/////////////////////////////////////
+/////////////////////////////////////
+/////////////////////////////////////
+
 
 BOOST_AUTO_TEST_CASE( subtractRange )
 {
@@ -197,4 +228,54 @@ BOOST_AUTO_TEST_CASE( subtractRange )
 		BOOST_CHECK(it == testRange.end());			
 	}
 	
+}
+
+/////////////////////////////////////
+/////////////////////////////////////
+/////////////////////////////////////
+
+BOOST_AUTO_TEST_CASE( serizalization )
+{
+	// UDP Packet as Struct
+	#pragma pack(push, 1)
+	struct {
+		uint8_t numberIntervals;
+		uint64_t a0;
+		uint64_t b0;
+		uint64_t a1;
+		uint64_t b1;
+	} rangeData;
+	#pragma pack(pop)
+
+	// Create
+	auto range = Range(3,5);
+	range.add(8,10);
+
+	// Data Layer
+	auto rangeBuffer = range.asBuffer();
+	BOOST_CHECK_EQUAL(sizeof(rangeData), boost::asio::buffer_size(rangeBuffer));
+
+	boost::asio::buffer_copy(boost::asio::buffer(&rangeData, sizeof(rangeData)), rangeBuffer); 
+	
+	BOOST_CHECK_EQUAL(rangeData.numberIntervals, 2);
+	BOOST_CHECK_EQUAL(rangeData.a0, 3);
+	BOOST_CHECK_EQUAL(rangeData.b0, 5);
+	BOOST_CHECK_EQUAL(rangeData.a1, 8);
+	BOOST_CHECK_EQUAL(rangeData.b1, 10);
+
+	// Parse
+	auto parsedRange = Range::fromBuffer(reinterpret_cast<uint8_t*>(&rangeData));
+	BOOST_CHECK_EQUAL(parsedRange->intervalCount(), 2);
+	{
+		auto it = parsedRange->begin();
+		for( uint64_t i = 3; i < 5; i++, it++) 
+		{
+			BOOST_CHECK_EQUAL(*it, i);	
+		}
+		for( uint64_t i = 8; i < 10; i++, it++) 
+		{
+			BOOST_CHECK_EQUAL(*it, i);	
+		}
+		BOOST_CHECK(it == parsedRange->end());			
+	}
 }

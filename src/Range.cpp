@@ -6,11 +6,13 @@
 Range::Range(int64_t start, int64_t end)
 {
 	m_intervals.push_back(Interval(start, end));
+	intervalCount();
 }
 
 Range::Range(int64_t number)
 {
 	m_intervals.push_back(Interval(number, number + 1));
+	intervalCount();	
 }
 
 void Range::add(uint64_t number)
@@ -119,4 +121,33 @@ void Range::mergeIntervals()
 			it++;
 		}
 	}
+	intervalCount();
+}
+
+std::vector<boost::asio::const_buffer> Range::asBuffer() const {
+
+	std::vector<boost::asio::const_buffer> composite_buffer;
+
+	composite_buffer.push_back(boost::asio::const_buffer(&m_intervalCount, sizeof(m_intervalCount)));
+	for( const Interval& v : m_intervals) {
+		composite_buffer.push_back(boost::asio::const_buffer(&v, sizeof(Interval)));
+	}
+
+	return composite_buffer;
+}
+
+std::shared_ptr<Range> Range::fromBuffer(const uint8_t* data)
+{
+	uint8_t intervalCount = *reinterpret_cast<const uint8_t*>(data);
+	data += sizeof(uint8_t);
+
+	std::shared_ptr<Range> range(new Range());
+	BOOST_LOG_TRIVIAL(debug) << "Range::fromBuffer: " << intervalCount;
+
+	const uint64_t* numbers = reinterpret_cast<const uint64_t*>(data);
+	for( int i = 0; i < intervalCount; ++i, numbers += 2) {
+		range->add(numbers[0], numbers[1]);
+	}
+
+	return range;
 }

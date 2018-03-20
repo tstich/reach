@@ -1,6 +1,7 @@
 #pragma once
 
 #include <deque>
+#include <boost/asio.hpp>
 
 class Range
 {
@@ -20,7 +21,14 @@ public:
 	void subtract(int64_t start, int64_t end);
 	void subtract(const Range &other);
 
-	uint8_t intervalCount() const { return static_cast<uint8_t>(m_intervals.size()); }
+	uint8_t intervalCount() { return m_intervalCount = static_cast<uint8_t>(m_intervals.size()); }
+
+	// Range from Buffer
+	static std::shared_ptr<Range> fromBuffer(const uint8_t* data);
+
+	// Range to Buffer
+	std::vector<boost::asio::const_buffer> asBuffer() const;
+
 
 public:
     // member typedefs provided through inheriting from std::iterator
@@ -53,4 +61,6 @@ private:
 
 	// Vector of sorted intervals
 	std::deque< Interval > m_intervals;
+
+	uint8_t m_intervalCount;
 };
