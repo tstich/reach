@@ -161,13 +161,15 @@ BOOST_AUTO_TEST_CASE( fileInfoMessage )
 		uint64_t messageId;
 		uint64_t ufid;
 		uint64_t packetCount;
+		uint64_t packetSize;
 	} messageData;
 	#pragma pack(pop)
 
 	// Create
 	uint64_t testUfid = 1234567;
 	uint64_t testPacketCount = 75234;
-	auto message = Message::createFileInfo(testUfid, testPacketCount);
+	uint64_t testPacketSize = 1024;
+	auto message = Message::createFileInfo(testUfid, testPacketCount, testPacketSize);
 
 	// Data Layer
 	auto messageBuffer = message->asBuffer();
@@ -178,16 +180,20 @@ BOOST_AUTO_TEST_CASE( fileInfoMessage )
 	BOOST_CHECK_EQUAL(messageData.type, Message::FILE_INFO);
 	BOOST_CHECK_EQUAL(messageData.messageId, message->messageId());
 	BOOST_CHECK_EQUAL(messageData.ufid, testUfid);
+	BOOST_CHECK_EQUAL(messageData.packetCount, testPacketCount);
+	BOOST_CHECK_EQUAL(messageData.packetSize, testPacketSize);
 
 	// Parse
 	auto parsedMessage = Message::fromBuffer(reinterpret_cast<uint8_t*>(&messageData));
 	BOOST_CHECK_EQUAL(parsedMessage->type(), Message::FILE_INFO);
 	BOOST_CHECK_EQUAL(parsedMessage->messageId(), message->messageId());
 	BOOST_CHECK_EQUAL(parsedMessage->ufid(), testUfid);
+	BOOST_CHECK_EQUAL(parsedMessage->packetCount(), testPacketCount);
+	BOOST_CHECK_EQUAL(parsedMessage->packetSize(), testPacketSize);
 
 
 	// Check Message ID is not the same for a second message
-	auto secondMessage = Message::createFileInfo(testUfid, testPacketCount);
+	auto secondMessage = Message::createFileInfo(testUfid, testPacketCount, testPacketSize);
 	BOOST_CHECK(message->messageId() != secondMessage->messageId());
 }
 

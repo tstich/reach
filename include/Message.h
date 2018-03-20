@@ -29,7 +29,7 @@ public:
 	static std::shared_ptr<Message> createPing();
 	static std::shared_ptr<Message> createAlive();	
 	static std::shared_ptr<Message> createReqFile(const char* path);
-	static std::shared_ptr<Message> createFileInfo(uint64_t ufid, uint64_t packetCount);
+	static std::shared_ptr<Message> createFileInfo(uint64_t ufid, uint64_t packetCount, uint64_t packetSize);
 	static std::shared_ptr<Message> createRequestFilePackets(uint64_t ufid, Range packets);
 
 	// Message from Buffer
@@ -45,6 +45,7 @@ public:
 	const char* path() const { return m_path; }
 	uint64_t ufid() const { return m_ufid; }
 	uint64_t packetCount() const { return m_packetCount; }
+	uint64_t packetSize() const { return m_packetSize; }
 	Range packets() const { return m_packets; }
 
 protected:
@@ -63,6 +64,7 @@ private:
 	char m_path[PATH_LENGTH];
 	uint64_t m_ufid;
 	uint64_t m_packetCount;
+	uint64_t m_packetSize;
 	Range m_packets;
 
 
