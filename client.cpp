@@ -9,7 +9,10 @@
 #include <boost/bind.hpp>
 
 #include <Config.h>
-#include <Message.h>
+#include <CopyFile.h>
+
+#define BOOST_LOG_DYN_LINK 1
+#include <boost/log/trivial.hpp>
 
 using boost::asio::ip::udp;
 
@@ -17,40 +20,19 @@ class ReachClient
 {
 public:
   ReachClient(boost::asio::io_service& io_service)
-    : socket_(io_service), 
-      receiver_endpoint_(udp::v4(), REACH_PORT),
-      ping_timer_(io_service, boost::posix_time::seconds(PING_INTERVAL))
+    : m_socket(new udp::socket(io_service)), 
+      m_receiverEndpoint(udp::v4(), REACH_PORT)
   {
-    socket_.open(udp::v4());
+    m_socket->open(udp::v4());
 
-    ping_timer_.async_wait(boost::bind(&ReachClient::sendPing, this, boost::asio::placeholders::error));
+    m_randomFile.reset(new CopyFile("/random/file", m_socket, m_receiverEndpoint) );
   }
 
-private:
-  void sendPing(const boost::system::error_code& /*e*/)
-  {
-    std::shared_ptr<Message> message = Message::createPing(); 
-
-    socket_.async_send_to(message->asBuffer(), receiver_endpoint_,
-        boost::bind(&ReachClient::handle_send, this, message,
-          boost::asio::placeholders::error,
-          boost::asio::placeholders::bytes_transferred));
-
-    ping_timer_.expires_at(ping_timer_.expires_at() + boost::posix_time::seconds(PING_INTERVAL));
-    ping_timer_.async_wait(boost::bind(&ReachClient::sendPing, this, boost::asio::placeholders::error));
-  }
-
-
-  void handle_send(std::shared_ptr<Message> /*message*/,
-      const boost::system::error_code& /*error*/,
-      std::size_t /*bytes_transferred*/)
-  {
-  }
-
-  udp::socket socket_;
-  udp::endpoint receiver_endpoint_;
+private: 
+  std::shared_ptr<CopyFile> m_randomFile;
+  std::shared_ptr<udp::socket> m_socket;
+  udp::endpoint m_receiverEndpoint;
   boost::array<uint8_t, MAX_MESSAGE_SIZE> recv_buffer_;
-  boost::asio::deadline_timer ping_timer_;
 };
 
 int main()
@@ -58,7 +40,9 @@ int main()
   try
   {
     boost::asio::io_service io_service;
-    ReachClient server(io_service);
+    // boost::asio::io_service::work work(io_service);    
+
+    ReachClient client(io_service);
     io_service.run();
   }
   catch (std::exception& e)
