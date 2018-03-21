@@ -10,32 +10,34 @@ using boost::asio::ip::udp;
 CopyFile::CopyFile(const char* path, 
 	std::shared_ptr<udp::socket> socket,
 	udp::endpoint& receiverEndpoint) : 
-m_path(path),
 m_socket(socket),
 m_receiverEndpoint(receiverEndpoint),
 m_errorCount(0),
 m_receiveTimer(socket->get_io_service())
 {
+	m_reqFileMessage = Message::createReqFile(path);  
 	sendRequestFile();
 }
 
 void CopyFile::sendRequestFile()
 {
-	BOOST_LOG_TRIVIAL(info) << "CopyFile::sendRequestFile: " << m_path;
-    std::shared_ptr<Message> message = Message::createReqFile(m_path); 
+	BOOST_LOG_TRIVIAL(info) << "CopyFile::sendRequestFile: " << m_reqFileMessage->path();
 
-    m_socket->async_send_to(message->asBuffer(), m_receiverEndpoint,
-        boost::bind(&CopyFile::sendRequestFileCallback, this, 
-        	message,
+    m_socket->async_send_to(m_reqFileMessage->asBuffer(), m_receiverEndpoint,
+        boost::bind(&CopyFile::sendRequestFileComplete, this, 
           	boost::asio::placeholders::error,
           	boost::asio::placeholders::bytes_transferred));
 
+    m_socket->async_receive_from(boost::asio::buffer(m_receiveBuffer), 
+    		m_receiverEndpoint,
+        	boost::bind(&CopyFile::receiveFileInfo, this, 
+          	boost::asio::placeholders::error,
+          	boost::asio::placeholders::bytes_transferred));    	
 }
 
-void CopyFile::sendRequestFileCallback(
-  std::shared_ptr<Message> message,
+void CopyFile::sendRequestFileComplete (
   const boost::system::error_code& error,
-  std::size_t bytes_transferred)
+  std::size_t messageSize)
 {
 	if( error ) {
 		m_errorCount++;
@@ -45,7 +47,7 @@ void CopyFile::sendRequestFileCallback(
 			sendRequestFile();
 		}
 	} else {
-		BOOST_LOG_TRIVIAL(info) << "CopyFile::sendRequestFile: Success";
+		BOOST_LOG_TRIVIAL(info) << "CopyFile::sendRequestFile: " << messageSize;
 
 		m_receiveTimer.expires_from_now(boost::posix_time::milliseconds(RECEIVE_TIMEOUT));
 		m_receiveTimer.async_wait(
@@ -54,12 +56,28 @@ void CopyFile::sendRequestFileCallback(
 	}
 }
 
+void CopyFile::receiveFileInfo( const boost::system::error_code& error,
+		std::size_t messageSize)
+{
+	BOOST_LOG_TRIVIAL(info) << "CopyFile::receiveFileInfo: " << messageSize;
+	
+    if (!error || error == boost::asio::error::message_size)
+    {
+      m_fileInfoMessage = Message::fromBuffer(m_receiveBuffer.data(), messageSize);
+  	} 
+}
+
+
 void CopyFile::receiveFileInfoTimeOut( const boost::system::error_code& error )
 {
 	if( !error ) {
 		m_errorCount++;
 		BOOST_LOG_TRIVIAL(error) << "CopyFile::receiveFileInfo: (" << m_errorCount << "):" << " Timeout";
 
+		// Cancel the receive operation
+		m_socket->cancel();
+
+		// Retry up to SEND_RETRY times
 		if(m_errorCount < SEND_RETRY) {
 			sendRequestFile();
 		}		

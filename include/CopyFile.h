@@ -1,6 +1,8 @@
 #pragma once
 
 #include <boost/asio.hpp>
+#include <boost/array.hpp>
+
 #include <Message.h>
 
 using boost::asio::ip::udp;
@@ -13,24 +15,24 @@ public:
 
 private:
 	void sendRequestFile();
-	void sendRequestFileCallback(  
-		std::shared_ptr<Message> message,
+	void sendRequestFileComplete(  
   		const boost::system::error_code& error,
-  		std::size_t bytes_transferred);
+  		std::size_t messageSize);
 
-	// void receiveFileInfo();
-	// void receiveFileInfoCallback();
+	void receiveFileInfo( const boost::system::error_code& error,
+  		std::size_t messageSize);
 	void receiveFileInfoTimeOut(const boost::system::error_code& error);
 
 	void sendRequestFilePackets();
 	void receiveFilePacket();
 
 private:
-	const char* m_path;
 	std::shared_ptr<boost::asio::ip::udp::socket> m_socket;
 	boost::asio::ip::udp::endpoint m_receiverEndpoint;
-
 	uint64_t m_errorCount;
-
 	boost::asio::deadline_timer m_receiveTimer;
+
+	boost::array<uint8_t, MAX_MESSAGE_SIZE> m_receiveBuffer;
+	std::shared_ptr<Message> m_reqFileMessage;
+	std::shared_ptr<Message> m_fileInfoMessage;
 };
