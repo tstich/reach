@@ -11,65 +11,74 @@
 #include <Config.h>
 #include <Message.h>
 
+#define BOOST_LOG_DYN_LINK 1
+#include <boost/log/trivial.hpp>
+
+
 using boost::asio::ip::udp;
 
 
 class ReachServer
 {
 public:
-  ReachServer(boost::asio::io_service& io_service)
+    ReachServer(boost::asio::io_service& io_service)
     : socket_(io_service, udp::endpoint(udp::v4(), REACH_PORT))
-  {
-    start_receive();
-  }
+    {
+        start_receive();
+    }
 
 private:
-  void start_receive()
-  {
-    socket_.async_receive_from(
-        boost::asio::buffer(recv_buffer_), remote_endpoint_,
-        boost::bind(&ReachServer::handle_receive, this,
-          boost::asio::placeholders::error,
-          boost::asio::placeholders::bytes_transferred));
-  }
+    void start_receive()
+    {
+        socket_.async_receive_from(
+            boost::asio::buffer(recv_buffer_), remote_endpoint_,
+            boost::bind(&ReachServer::handle_receive, this,
+              boost::asio::placeholders::error,
+              boost::asio::placeholders::bytes_transferred));
+    }
 
-  static void noop_handler(const boost::system::error_code& error,
+    static void noop_handler(const boost::system::error_code& error,
       std::size_t messageSize) {;}
 
-  void handle_receive(const boost::system::error_code& error,
+    void handle_receive(const boost::system::error_code& error,
       std::size_t messageSize)
-  {
-    if (!error || error == boost::asio::error::message_size)
     {
-      auto message = Message::fromBuffer(recv_buffer_.data(), messageSize);
+        if (!error || error == boost::asio::error::message_size)
+        {
+          auto message = Message::fromBuffer(recv_buffer_.data(), messageSize);
 
-      switch( message->type() ) {
-        case Message::REQ_FILE:
-          auto response = Message::createFileInfo(1234, 1024, 1024);
-          socket_.async_send_to(response->asBuffer(), remote_endpoint_, 
-            ReachServer::noop_handler);
-          break;
+          switch( message->type() ) {
+            case Message::REQ_FILE: {
+                auto response = Message::createFileInfo(1234, 1024, 1024);
+                socket_.async_send_to(response->asBuffer(), remote_endpoint_, 
+                    ReachServer::noop_handler);
+                break;                
+            }
 
-      }
+            case Message::REQ_FILE_PACKETS: {
+                std::vector<uint8_t> payload(1024);
+                boost::asio::deadline_timer m_throttleTimer(socket_.get_io_service());
+                BOOST_LOG_TRIVIAL(error) << "Sending Packets:" << message->packets().elementCount();
 
-      // socket_.async_send_to(boost::asio::buffer(*message), remote_endpoint_,
-      //     boost::bind(&udp_server::handle_send, this, message,
-      //       boost::asio::placeholders::error,
-      //       boost::asio::placeholders::bytes_transferred));
+                for( int64_t packetId : message->packets() ) {
+                    auto response = Message::createFilePacket(message->ufid(), packetId, payload);
+                    socket_.async_send_to(response->asBuffer(), remote_endpoint_, 
+                        ReachServer::noop_handler);
 
-      start_receive();
+                    // m_throttleTimer.expires_from_now(boost::posix_time::microseconds(10));
+                    // m_throttleTimer.wait();
+                }
+                break;
+            }
+            }
+        }
+        start_receive();
     }
-  }
 
-  // void handle_send(boost::shared_ptr<std::string> /*message*/,
-  //     const boost::system::error_code& /*error*/,
-  //     std::size_t /*bytes_transferred*/)
-  // {
-  // }
-
-  udp::socket socket_;
-  udp::endpoint remote_endpoint_;
-  boost::array<uint8_t, MAX_MESSAGE_SIZE> recv_buffer_;
+private:
+    udp::socket socket_;
+    udp::endpoint remote_endpoint_;
+    boost::array<uint8_t, MAX_MESSAGE_SIZE> recv_buffer_;
 };
 
 int main()
@@ -79,11 +88,11 @@ int main()
     boost::asio::io_service io_service;
     ReachServer server(io_service);
     io_service.run();
-  }
-  catch (std::exception& e)
-  {
+}
+catch (std::exception& e)
+{
     std::cerr << e.what() << std::endl;
-  }
+}
 
-  return 0;
+return 0;
 }

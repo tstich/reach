@@ -22,6 +22,10 @@ public:
 	void subtract(const Range &other);
 
 	uint8_t intervalCount() { return m_intervalCount = static_cast<uint8_t>(m_intervals.size()); }
+	size_t elementCount() const;
+
+	Range firstN(int64_t elements);
+
 
 	// Range from Buffer
 	static std::shared_ptr<Range> fromBuffer(const uint8_t* data);

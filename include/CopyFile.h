@@ -24,7 +24,13 @@ private:
 	void receiveFileInfoTimeOut(const boost::system::error_code& error);
 
 	void sendRequestFilePackets();
-	void receiveFilePacket();
+	void sendRequestFilePacketsComplete(  
+  		const boost::system::error_code& error,
+  		std::size_t messageSize);
+	void sendRequestFilePacketsTimeOut(const boost::system::error_code& error);
+
+	void receiveFilePacket(const boost::system::error_code& error,
+  		std::size_t messageSize);
 
 private:
 	std::shared_ptr<boost::asio::ip::udp::socket> m_socket;
@@ -35,4 +41,6 @@ private:
 	boost::array<uint8_t, MAX_MESSAGE_SIZE> m_receiveBuffer;
 	std::shared_ptr<Message> m_reqFileMessage;
 	std::shared_ptr<Message> m_fileInfoMessage;
+
+	Range m_outstandingPackets;
 };

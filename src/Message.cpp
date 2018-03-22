@@ -83,7 +83,6 @@ std::shared_ptr<Message> Message::fromBuffer(const uint8_t* data, size_t length)
 
 	std::shared_ptr<Message> message(new Message(*reinterpret_cast<const TYPE*>(data)));
 	data += sizeof(TYPE);
-	BOOST_LOG_TRIVIAL(debug) << "Message::fromBuffer: " << message->m_type;
 
 	if( message->m_type == ACK || message->isChecked() ) {
 		message->m_messageId = *reinterpret_cast<const uint64_t*>(data);

@@ -67,6 +67,9 @@ void CopyFile::receiveFileInfo( const boost::system::error_code& error,
     	m_receiveTimer.cancel();
 
       	m_fileInfoMessage = Message::fromBuffer(m_receiveBuffer.data(), messageSize);
+  		m_outstandingPackets = Range(0, m_fileInfoMessage->packetCount());
+
+  		sendRequestFilePackets();
   	} 
 }
 
@@ -85,4 +88,96 @@ void CopyFile::receiveFileInfoTimeOut( const boost::system::error_code& error )
 			sendRequestFile();
 		}		
 	} 
+}
+
+void CopyFile::sendRequestFilePackets()
+{
+	BOOST_LOG_TRIVIAL(info) << "CopyFile::sendRequestFilePackets PacketCount: " << m_outstandingPackets.elementCount();
+
+	auto reqPacketsMessage = Message::createRequestFilePackets(
+		m_fileInfoMessage->ufid(),
+		m_outstandingPackets.firstN(256));
+
+    m_socket->async_send_to(reqPacketsMessage->asBuffer(), m_receiverEndpoint,
+        boost::bind(&CopyFile::sendRequestFilePacketsComplete, this, 
+          	boost::asio::placeholders::error,
+          	boost::asio::placeholders::bytes_transferred));
+
+    m_socket->async_receive_from(boost::asio::buffer(m_receiveBuffer), 
+    		m_receiverEndpoint,
+        	boost::bind(&CopyFile::receiveFilePacket, this, 
+          	boost::asio::placeholders::error,
+          	boost::asio::placeholders::bytes_transferred));    	
+
+}
+
+
+void CopyFile::sendRequestFilePacketsComplete(  
+		const boost::system::error_code& error,
+		std::size_t messageSize)
+{
+	BOOST_LOG_TRIVIAL(info) << "CopyFile::sendRequestFilePacketsComplete";
+
+	if( error ) {
+		m_errorCount++;
+		BOOST_LOG_TRIVIAL(error) << "CopyFile::sendRequestFile (" << m_errorCount << "):" << error;
+
+		if(m_errorCount < SEND_RETRY) {
+			sendRequestFilePackets();
+		}
+	} else {
+		BOOST_LOG_TRIVIAL(info) << "CopyFile::sendRequestFile: " << messageSize;
+
+		m_receiveTimer.expires_from_now(boost::posix_time::milliseconds(RECEIVE_TIMEOUT));
+		m_receiveTimer.async_wait(
+	        boost::bind(&CopyFile::sendRequestFilePacketsTimeOut, this, 
+	          	boost::asio::placeholders::error));
+	}
+
+
+}
+
+
+void CopyFile::sendRequestFilePacketsTimeOut( const boost::system::error_code& error )
+{
+	if( !error ) {
+		BOOST_LOG_TRIVIAL(error) << "CopyFile::receiveFilePacket: (" << m_errorCount << "):" << " Timeout";
+
+		// Cancel the receive operation
+		m_socket->cancel();
+
+		// Retry up to SEND_RETRY times
+		if(m_outstandingPackets.elementCount() > 0 && m_errorCount < SEND_RETRY) {
+			sendRequestFilePackets();
+		}		
+	} 
+}
+
+void CopyFile::receiveFilePacket( const boost::system::error_code& error,
+		std::size_t messageSize)
+{
+    if (!error || error == boost::asio::error::message_size)
+    {
+    	m_receiveTimer.cancel();
+
+      	auto filePacketMessage = Message::fromBuffer(m_receiveBuffer.data(), messageSize);
+  		m_outstandingPackets.subtract(filePacketMessage->packetId());
+
+		BOOST_LOG_TRIVIAL(info) << "CopyFile::receiveFilePacket: " << m_outstandingPackets.elementCount() ;
+
+    	// Restart timeout timer
+    	if(m_outstandingPackets.elementCount() > 0) {
+		    m_socket->async_receive_from(boost::asio::buffer(m_receiveBuffer), 
+		    		m_receiverEndpoint,
+		        	boost::bind(&CopyFile::receiveFilePacket, this, 
+		          	boost::asio::placeholders::error,
+		          	boost::asio::placeholders::bytes_transferred));    		
+
+	    	m_receiveTimer.expires_from_now(boost::posix_time::milliseconds(RECEIVE_TIMEOUT));
+			m_receiveTimer.async_wait(
+		        boost::bind(&CopyFile::sendRequestFilePacketsTimeOut, this, 
+		          	boost::asio::placeholders::error));	    	
+
+    	}
+  	} 
 }

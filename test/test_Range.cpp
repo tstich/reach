@@ -25,6 +25,7 @@ BOOST_AUTO_TEST_CASE( constructors )
 	{
 		Range testRange(0,10);
 		BOOST_CHECK_EQUAL(testRange.intervalCount(), 1);		
+		BOOST_CHECK_EQUAL(testRange.elementCount(), 10);		
 	}
 }
 
@@ -71,6 +72,9 @@ BOOST_AUTO_TEST_CASE( addNumber )
 	testRange.add(7);
 
 	BOOST_CHECK_EQUAL(testRange.intervalCount(), 2);	
+
+	BOOST_CHECK_EQUAL(testRange.elementCount(), 3);		
+
 }
 
 /////////////////////////////////////
@@ -278,4 +282,32 @@ BOOST_AUTO_TEST_CASE( serizalization )
 		}
 		BOOST_CHECK(it == parsedRange->end());			
 	}
+}
+
+/////////////////////////////////////
+/////////////////////////////////////
+/////////////////////////////////////
+
+
+BOOST_AUTO_TEST_CASE( firstN )
+{
+	Range testRange(0,3);
+	testRange.add(7,10);
+
+	Range testRange2 = testRange.firstN(5);
+
+	BOOST_CHECK_EQUAL(testRange2.elementCount(), 5);
+	{
+		auto it = testRange2.begin();
+		for( uint64_t i = 0; i < 3; i++, it++) 
+		{
+			BOOST_CHECK_EQUAL(*it, i);	
+		}
+		for( uint64_t i = 7; i < 9; i++, it++) 
+		{
+			BOOST_CHECK_EQUAL(*it, i);	
+		}
+		BOOST_CHECK(it == testRange2.end());			
+	}
+	
 }
