@@ -33,12 +33,24 @@ private:
           boost::asio::placeholders::bytes_transferred));
   }
 
+  static void noop_handler(const boost::system::error_code& error,
+      std::size_t messageSize) {;}
+
   void handle_receive(const boost::system::error_code& error,
       std::size_t messageSize)
   {
     if (!error || error == boost::asio::error::message_size)
     {
       auto message = Message::fromBuffer(recv_buffer_.data(), messageSize);
+
+      switch( message->type() ) {
+        case Message::REQ_FILE:
+          auto response = Message::createFileInfo(1234, 1024, 1024);
+          socket_.async_send_to(response->asBuffer(), remote_endpoint_, 
+            ReachServer::noop_handler);
+          break;
+
+      }
 
       // socket_.async_send_to(boost::asio::buffer(*message), remote_endpoint_,
       //     boost::bind(&udp_server::handle_send, this, message,

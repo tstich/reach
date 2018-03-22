@@ -63,7 +63,10 @@ void CopyFile::receiveFileInfo( const boost::system::error_code& error,
 	
     if (!error || error == boost::asio::error::message_size)
     {
-      m_fileInfoMessage = Message::fromBuffer(m_receiveBuffer.data(), messageSize);
+    	// Cancel timeout timer
+    	m_receiveTimer.cancel();
+
+      	m_fileInfoMessage = Message::fromBuffer(m_receiveBuffer.data(), messageSize);
   	} 
 }
 
