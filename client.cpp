@@ -41,7 +41,7 @@ public:
       std::shared_ptr<Message> receivedMessage = Message::Message::fromBuffer(
         buffer.data(), messageSize);
 
-      BOOST_LOG_TRIVIAL(info) << "Received message for ID:" << receivedMessage->ufid();
+//      BOOST_LOG_TRIVIAL(info) << "Received message for ID:" << receivedMessage->ufid();
 
       auto callbackIt = m_receiveCallback.find(receivedMessage->ufid());
       if( callbackIt != m_receiveCallback.end() ) {
@@ -52,9 +52,10 @@ public:
 
   void fetchFile(const char* path, boost::asio::yield_context yield) {
 
+    boost::system::error_code ec;
     uint64_t ufid = m_nextUfid++;
     auto fileRequestMessage = Message::createReqFile(ufid, path);
-    
+
     boost::asio::deadline_timer timer(m_socket->get_io_service());
 
     std::shared_ptr<Message> fileInfoMessage;
@@ -69,11 +70,13 @@ public:
     };
 
     for( int i = 0; i < SEND_RETRY && !fileInfoMessage; ++i) {
+
       BOOST_LOG_TRIVIAL(info) << "Sending fileRequest Message: " << fileRequestMessage->ufid();
-      m_socket->async_send_to(fileRequestMessage->asBuffer(), m_receiverEndpoint, yield);
+      m_socket->async_send_to(fileRequestMessage->asBuffer(), m_receiverEndpoint, yield[ec]);
 
       timer.expires_from_now(boost::posix_time::milliseconds(RECEIVE_TIMEOUT));
-      timer.async_wait(yield);       
+      
+      timer.async_wait(yield[ec]);       
     }
     
     if( !fileInfoMessage ) {
@@ -82,18 +85,24 @@ public:
     } 
 
     BOOST_LOG_TRIVIAL(info) << "Received fileInfo: " << fileInfoMessage->packetCount();
+    Range filePackets = Range(0, fileInfoMessage->packetCount());
 
+    m_receiveCallback[ufid] = [&](std::shared_ptr<Message> receivedMessage)
+    {
+      filePackets.subtract(receivedMessage->packetId());
+      if( filePackets.elementCount() == 0 ) {
+        timer.cancel();
+      }
+    };
+    
+    BOOST_LOG_TRIVIAL(info) << "Sending packetRequest Message: ";
 
+    auto reqFilePacketsMessage = Message::createRequestFilePackets(ufid, filePackets);
+    m_socket->async_send_to(reqFilePacketsMessage->asBuffer(), m_receiverEndpoint, yield[ec]);
 
-    // Wait till timeout
-
-    // 
-
-    // auto reqPacketsMessage = Message::createRequestFilePackets(
-    //   m_fileInfoMessage->ufid(),
-    //   m_outstandingPackets.firstN(256));
-
-    // Wait till timeout
+    timer.expires_from_now(boost::posix_time::milliseconds(RECEIVE_TIMEOUT));
+    timer.async_wait(yield[ec]);       
+    BOOST_LOG_TRIVIAL(info) << "Packets not received: " << filePackets.elementCount();
 
   }
 
