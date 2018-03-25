@@ -25,7 +25,6 @@ public:
 //////////////////////////////
 public:
 	// Message Specific Create
-	static std::shared_ptr<Message> createACK(uint64_t messageId);
 	static std::shared_ptr<Message> createPing();
 	static std::shared_ptr<Message> createAlive();	
 	static std::shared_ptr<Message> createReqFile(uint64_t ufid, const char* path);

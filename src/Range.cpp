@@ -43,6 +43,17 @@ void Range::add(const Range &other)
 	mergeIntervals();
 }
 
+bool Range::contains(uint64_t x)
+{
+	for( Interval i : m_intervals ) {
+		if( i.first <= x && x < i.second ) 
+			return true;
+	}	
+
+	return false;
+}
+
+
 void Range::subtract(uint64_t number)
 {
 	std::deque<Interval> unrolled;
@@ -181,3 +192,9 @@ Range Range::firstN(int64_t elements)
 	return result;
 }
 
+Range Range::removeFirstN(int64_t elements)
+{
+	Range r = firstN(elements);
+	subtract(r);
+	return r;
+}

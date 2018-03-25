@@ -25,6 +25,9 @@ public:
 	size_t elementCount() const;
 
 	Range firstN(int64_t elements);
+	Range removeFirstN(int64_t elements);
+
+	bool contains(uint64_t x);
 
 
 	// Range from Buffer

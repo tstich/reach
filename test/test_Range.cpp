@@ -311,3 +311,19 @@ BOOST_AUTO_TEST_CASE( firstN )
 	}
 	
 }
+
+/////////////////////////////////////
+/////////////////////////////////////
+/////////////////////////////////////
+
+BOOST_AUTO_TEST_CASE( contains )
+{
+	{
+		Range testRange(0,10);
+		for( uint64_t i = 0; i < 10; ++i ) {
+			BOOST_CHECK(testRange.contains(i));		
+		}
+		BOOST_CHECK(!testRange.contains(10));				
+		BOOST_CHECK(!testRange.contains(-1));				
+	}
+}

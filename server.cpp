@@ -49,7 +49,7 @@ private:
 
           switch( message->type() ) {
             case Message::REQ_FILE: {
-                auto response = Message::createFileInfo(message->ufid(), 1024, 1024);
+                auto response = Message::createFileInfo(message->ufid(), 1024 * 10, 1024);
                 socket_.async_send_to(response->asBuffer(), remote_endpoint_, 
                     ReachServer::noop_handler);
                 break;                
@@ -78,7 +78,7 @@ private:
 private:
     udp::socket socket_;
     udp::endpoint remote_endpoint_;
-    boost::array<uint8_t, MAX_MESSAGE_SIZE> recv_buffer_;
+    boost::array<uint8_t, 102400> recv_buffer_;
 };
 
 int main()
