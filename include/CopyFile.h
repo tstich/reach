@@ -43,4 +43,5 @@ private:
 	std::shared_ptr<Message> m_fileInfoMessage;
 
 	Range m_outstandingPackets;
+	uint64_t m_packetsInFlight;
 };

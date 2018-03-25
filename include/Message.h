@@ -17,7 +17,7 @@ class Message {
 // Types
 //////////////////////////////
 public:
-	enum TYPE : uint8_t {ACK, PING, ALIVE, REQ_FILE, FILE_INFO, REQ_FILE_PACKETS, FILE_PACKET};
+	enum TYPE : uint8_t {PING, ALIVE, REQ_FILE, FILE_INFO, REQ_FILE_PACKETS, FILE_PACKET};
 
 
 //////////////////////////////
@@ -28,7 +28,7 @@ public:
 	static std::shared_ptr<Message> createACK(uint64_t messageId);
 	static std::shared_ptr<Message> createPing();
 	static std::shared_ptr<Message> createAlive();	
-	static std::shared_ptr<Message> createReqFile(const char* path);
+	static std::shared_ptr<Message> createReqFile(uint64_t ufid, const char* path);
 	static std::shared_ptr<Message> createFileInfo(uint64_t ufid, uint64_t packetCount, uint64_t packetSize);
 	static std::shared_ptr<Message> createRequestFilePackets(uint64_t ufid, Range packets);
 	static std::shared_ptr<Message> createFilePacket(uint64_t ufid, uint64_t packetId, std::vector<uint8_t> payload);
@@ -40,9 +40,7 @@ public:
 	std::vector<boost::asio::const_buffer> asBuffer() const;
 
 	// Meta
-	bool isChecked() const;
 	TYPE type() const { return m_type; }
-	uint64_t messageId() const { return m_messageId; }
 	const char* path() const { return m_path; }
 	uint64_t ufid() const { return m_ufid; }
 	uint64_t packetCount() const { return m_packetCount; }
@@ -55,16 +53,12 @@ public:
 protected:
 	Message(TYPE type);
 
-private:
-	static uint64_t generateMessageId();
-
 //////////////////////////////
 // Variables
 //////////////////////////////
 private:	
 	TYPE m_type;
 	uint64_t m_version;
-	uint64_t m_messageId;
 	char m_path[PATH_LENGTH];
 	uint64_t m_ufid;
 	uint64_t m_packetCount;

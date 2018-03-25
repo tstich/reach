@@ -15,40 +15,6 @@
 /////////////////////////////////////
 /////////////////////////////////////
 
-BOOST_AUTO_TEST_CASE( ackMessage )
-{
-	// UDP Packet as Struct
-	#pragma pack(push, 1)
-	struct {
-		uint8_t type;
-		uint64_t messageId;
-	} messageData;
-	#pragma pack(pop)
-
-	// Create
-	uint64_t testId = 123456;
-	auto message = Message::createACK(testId);
-
-	// Data Layer
-	auto messageBuffer = message->asBuffer();
-	BOOST_CHECK_EQUAL(sizeof(messageData), boost::asio::buffer_size(messageBuffer));
-
-	boost::asio::buffer_copy(boost::asio::buffer(&messageData, sizeof(messageData)), messageBuffer); 
-	
-	BOOST_CHECK_EQUAL(messageData.type, Message::ACK);
-	BOOST_CHECK_EQUAL(messageData.messageId, testId);
-
-	// Parse
-	auto parsedMessage = Message::fromBuffer(reinterpret_cast<uint8_t*>(&messageData), sizeof(messageData));
-	BOOST_CHECK_EQUAL(parsedMessage->type(), Message::ACK);
-	BOOST_CHECK_EQUAL(parsedMessage->messageId(), testId);
-
-}
-
-/////////////////////////////////////
-/////////////////////////////////////
-/////////////////////////////////////
-
 BOOST_AUTO_TEST_CASE( pingMessage )
 {
 	// UDP Packet as Struct
@@ -116,14 +82,15 @@ BOOST_AUTO_TEST_CASE( reqFileMessage )
 	#pragma pack(push, 1)
 	struct {
 		uint8_t type;
-		uint64_t messageId;
+		uint64_t ufid;
 		char path[PATH_LENGTH];
 	} messageData;
 	#pragma pack(pop)
 
 	// Create
 	const char* testPath = "/some/random/file";
-	auto message = Message::createReqFile(testPath);
+	uint64_t testUfid = 3456;
+	auto message = Message::createReqFile(testUfid, testPath);
 
 	// Data Layer
 	auto messageBuffer = message->asBuffer();
@@ -132,19 +99,14 @@ BOOST_AUTO_TEST_CASE( reqFileMessage )
 	boost::asio::buffer_copy(boost::asio::buffer(&messageData, sizeof(messageData)), messageBuffer); 
 	
 	BOOST_CHECK_EQUAL(messageData.type, Message::REQ_FILE);
-	BOOST_CHECK_EQUAL(messageData.messageId, message->messageId());
+	BOOST_CHECK_EQUAL(messageData.ufid, message->ufid());
 	BOOST_CHECK_EQUAL(messageData.path, testPath);
 
 	// Parse
 	auto parsedMessage = Message::fromBuffer(reinterpret_cast<uint8_t*>(&messageData), sizeof(messageData));
 	BOOST_CHECK_EQUAL(parsedMessage->type(), Message::REQ_FILE);
-	BOOST_CHECK_EQUAL(parsedMessage->messageId(), message->messageId());
+	BOOST_CHECK_EQUAL(parsedMessage->ufid(), message->ufid());
 	BOOST_CHECK_EQUAL(parsedMessage->path(), testPath);
-
-
-	// Check Message ID is not the same for a second message
-	auto secondMessage = Message::createReqFile(testPath);
-	BOOST_CHECK(message->messageId() != secondMessage->messageId());
 }
 
 
@@ -158,7 +120,6 @@ BOOST_AUTO_TEST_CASE( fileInfoMessage )
 	#pragma pack(push, 1)
 	struct {
 		uint8_t type;
-		uint64_t messageId;
 		uint64_t ufid;
 		uint64_t packetCount;
 		uint64_t packetSize;
@@ -178,7 +139,6 @@ BOOST_AUTO_TEST_CASE( fileInfoMessage )
 	boost::asio::buffer_copy(boost::asio::buffer(&messageData, sizeof(messageData)), messageBuffer); 
 	
 	BOOST_CHECK_EQUAL(messageData.type, Message::FILE_INFO);
-	BOOST_CHECK_EQUAL(messageData.messageId, message->messageId());
 	BOOST_CHECK_EQUAL(messageData.ufid, testUfid);
 	BOOST_CHECK_EQUAL(messageData.packetCount, testPacketCount);
 	BOOST_CHECK_EQUAL(messageData.packetSize, testPacketSize);
@@ -186,15 +146,9 @@ BOOST_AUTO_TEST_CASE( fileInfoMessage )
 	// Parse
 	auto parsedMessage = Message::fromBuffer(reinterpret_cast<uint8_t*>(&messageData), sizeof(messageData));
 	BOOST_CHECK_EQUAL(parsedMessage->type(), Message::FILE_INFO);
-	BOOST_CHECK_EQUAL(parsedMessage->messageId(), message->messageId());
 	BOOST_CHECK_EQUAL(parsedMessage->ufid(), testUfid);
 	BOOST_CHECK_EQUAL(parsedMessage->packetCount(), testPacketCount);
 	BOOST_CHECK_EQUAL(parsedMessage->packetSize(), testPacketSize);
-
-
-	// Check Message ID is not the same for a second message
-	auto secondMessage = Message::createFileInfo(testUfid, testPacketCount, testPacketSize);
-	BOOST_CHECK(message->messageId() != secondMessage->messageId());
 }
 
 /////////////////////////////////////

@@ -1,7 +1,7 @@
 cmake_minimum_required (VERSION 3.1)
 project (reach)
 
-find_package(Boost 1.58.0 REQUIRED COMPONENTS system log unit_test_framework)
+find_package(Boost 1.58.0 REQUIRED COMPONENTS system log unit_test_framework coroutine)
 
 set (CMAKE_CXX_STANDARD 11)
 
@@ -10,7 +10,7 @@ include_directories(include)
 
 # Shared Code
 
-add_library(reach_common STATIC src/Message.cpp src/Range.cpp src/CopyFile.cpp)
+add_library(reach_common STATIC src/Message.cpp src/Range.cpp)
 target_link_libraries(reach_common ${Boost_LIBRARIES})
 
 # Server Application

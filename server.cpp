@@ -49,7 +49,7 @@ private:
 
           switch( message->type() ) {
             case Message::REQ_FILE: {
-                auto response = Message::createFileInfo(1234, 1024, 1024);
+                auto response = Message::createFileInfo(message->ufid(), 1024, 1024);
                 socket_.async_send_to(response->asBuffer(), remote_endpoint_, 
                     ReachServer::noop_handler);
                 break;                
