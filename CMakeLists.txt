@@ -1,7 +1,7 @@
 cmake_minimum_required (VERSION 3.1)
 project (reach)
 
-find_package(Boost 1.58.0 REQUIRED COMPONENTS system log unit_test_framework coroutine iostreams)
+find_package(Boost 1.58.0 REQUIRED COMPONENTS system log unit_test_framework coroutine iostreams program_options)
 
 set (CMAKE_CXX_STANDARD 11)
 

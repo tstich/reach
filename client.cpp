@@ -9,6 +9,7 @@
 #include <boost/asio/spawn.hpp>
 #include <boost/asio/async_result.hpp>
 #include <boost/iostreams/device/mapped_file.hpp>
+#include <boost/program_options.hpp> 
 
 #include <Config.h>
 #include <Message.h>
@@ -210,15 +211,45 @@ private:
   bool m_shutdown;
 };
 
-int main()
+int main(int argc, char** argv)
 {
+    namespace po = boost::program_options; 
+    po::options_description desc("Copy Files via REACH UDP"); 
+    desc.add_options() 
+      ("help", "Print help messages")
+      ("file", po::value<std::string>()->required(), "File on server to be copied");
+      
+    po::positional_options_description positionalOptions; 
+    positionalOptions.add("file", 1); 
+
+    po::variables_map vm; 
+    try 
+    { 
+      po::store(po::command_line_parser(argc, argv).options(desc).positional(positionalOptions).run(),  
+                vm);
+ 
+      if ( vm.count("help")  ) 
+      { 
+        std::cout << desc << std::endl; 
+        return 0; 
+      } 
+ 
+      po::notify(vm); // throws on error, so do after help in case 
+                      // there are any problems 
+    } 
+    catch(po::error& e) 
+    { 
+      std::cerr << "ERROR: " << e.what() << std::endl << std::endl; 
+      std::cerr << desc << std::endl; 
+      return 1; 
+    } 
   try
   {
     boost::asio::io_service io_service;
     ReachClient client(io_service);
     boost::asio::spawn(io_service, [&](yield_context yield)
     {
-      client.fetchFile("/Users/timostich/Downloads/vlc-2.2.6.dmg", yield);
+      client.fetchFile(vm["file"].as<std::string>().c_str() , yield);
     });
     boost::asio::spawn(io_service, [&](yield_context yield) {
       client.receiveMessage(yield);
