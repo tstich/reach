@@ -27,7 +27,8 @@ public:
   ReachClient(boost::asio::io_service& io_service)
     : m_socket(new udp::socket(io_service)), 
       m_receiverEndpoint(udp::v4(), REACH_PORT),
-      m_nextUfid(0)
+      m_nextUfid(0),
+      m_shutdown(false)
   {
     m_socket->open(udp::v4());
   }
@@ -35,19 +36,23 @@ public:
   void receiveMessage(boost::asio::yield_context yield) {
     boost::array<uint8_t, MAX_MESSAGE_SIZE> buffer;
 
-    for(;;) {
+    while(!m_shutdown) {
+      boost::system::error_code ec;
+
       size_t messageSize = m_socket->async_receive_from(
         boost::asio::buffer(buffer), 
-        m_receiverEndpoint, yield);
+        m_receiverEndpoint, yield[ec]);
 
-      std::shared_ptr<Message> receivedMessage = Message::Message::fromBuffer(
-        buffer.data(), messageSize);
+      if( ec == boost::system::errc::success ) {
+        std::shared_ptr<Message> receivedMessage = Message::Message::fromBuffer(
+          buffer.data(), messageSize);
 
-//      BOOST_LOG_TRIVIAL(info) << "Received message for ID:" << receivedMessage->ufid();
+  //      BOOST_LOG_TRIVIAL(info) << "Received message for ID:" << receivedMessage->ufid();
 
-      auto callbackIt = m_receiveCallback.find(receivedMessage->ufid());
-      if( callbackIt != m_receiveCallback.end() ) {
-        (callbackIt->second)(receivedMessage);
+        auto callbackIt = m_receiveCallback.find(receivedMessage->ufid());
+        if( callbackIt != m_receiveCallback.end() ) {
+          (callbackIt->second)(receivedMessage);
+        }
       }
     }
   }
@@ -73,7 +78,7 @@ public:
 
     for( int i = 0; i < SEND_RETRY && !fileInfoMessage; ++i) {
 
-      BOOST_LOG_TRIVIAL(info) << "Sending fileRequest Message: " << fileRequestMessage->ufid();
+      BOOST_LOG_TRIVIAL(info) << "Sending fileRequest: " << path;
       m_socket->async_send_to(fileRequestMessage->asBuffer(), m_receiverEndpoint, yield[ec]);
 
       timer.expires_from_now(boost::posix_time::milliseconds(RECEIVE_TIMEOUT));
@@ -158,7 +163,7 @@ public:
       // BOOST_LOG_TRIVIAL(debug) << "outstandingPackets: " << outstandingPackets.elementCount();
 
       if( totalInflightPackets == 0 && outstandingPackets.elementCount() == 0 ) {
-        m_receiveCallback.erase(ufid);
+        m_receiveCallback.erase(ufid);        
         break;
       }
 
@@ -191,7 +196,8 @@ public:
     BOOST_LOG_TRIVIAL(info) << "Duration: " << duration;
     BOOST_LOG_TRIVIAL(info) << "Throughput: " << fileInfoMessage->fileSize() / duration;
 
-
+    m_shutdown = true;
+    m_socket->cancel();
   }
 
 private: 
@@ -200,6 +206,8 @@ private:
 
   std::atomic<uint64_t> m_nextUfid;
   std::map<uint64_t, std::function<void(std::shared_ptr<Message>)> > m_receiveCallback;
+
+  bool m_shutdown;
 };
 
 int main()
