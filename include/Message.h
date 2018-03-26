@@ -30,7 +30,8 @@ public:
 	static std::shared_ptr<Message> createReqFile(uint64_t ufid, const char* path);
 	static std::shared_ptr<Message> createFileInfo(uint64_t ufid, uint64_t packetCount, uint64_t packetSize);
 	static std::shared_ptr<Message> createRequestFilePackets(uint64_t ufid, Range packets);
-	static std::shared_ptr<Message> createFilePacket(uint64_t ufid, uint64_t packetId, std::vector<uint8_t> payload);
+	static std::shared_ptr<Message> createFilePacket(uint64_t ufid, uint64_t packetId, const uint8_t* payloadData, size_t payloadSize);
+	static std::shared_ptr<Message> createFilePacket(uint64_t ufid, uint64_t packetId, const char* payloadData, size_t payloadSize);
 
 	// Message from Buffer
 	static std::shared_ptr<Message> fromBuffer(const uint8_t* data, size_t length);
@@ -47,7 +48,8 @@ public:
 	Range packets() const { return m_packets; }
 
 	uint64_t packetId() const { return m_packetId; }
-	std::vector<uint8_t> payload() const { return m_payload; }
+	const uint8_t* payloadData() const { return m_payloadData; }
+	size_t payloadSize() const { return m_payloadSize; }
 
 protected:
 	Message(TYPE type);
@@ -64,7 +66,8 @@ private:
 	uint64_t m_packetSize;
 	Range m_packets;
 	uint64_t m_packetId;
-	std::vector<uint8_t> m_payload;
+	const uint8_t* m_payloadData;
+	size_t m_payloadSize;
 
 
 	static uint64_t m_nextMessageId;

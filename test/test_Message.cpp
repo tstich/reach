@@ -212,7 +212,7 @@ BOOST_AUTO_TEST_CASE( filePacketMessage )
 		uint8_t type;
 		uint64_t ufid;
 		uint64_t packetId;
-		uint8_t payload[16];
+		uint8_t payloadData[16];
 	} messageData;
 	#pragma pack(pop)
 
@@ -222,7 +222,8 @@ BOOST_AUTO_TEST_CASE( filePacketMessage )
 	std::vector<uint8_t> testPayload(16);
 	std::generate (testPayload.begin(), testPayload.end(), RandomNumber);
 
-	auto message = Message::createFilePacket(testUfid, testPacketId, testPayload);
+	auto message = Message::createFilePacket(testUfid, testPacketId, 
+		&testPayload[0], testPayload.size());
 
 	// Data Layer
 	auto messageBuffer = message->asBuffer();
@@ -234,7 +235,7 @@ BOOST_AUTO_TEST_CASE( filePacketMessage )
 	BOOST_CHECK_EQUAL(messageData.ufid, testUfid);
 	BOOST_CHECK_EQUAL(messageData.packetId, message->packetId());
 	for( int i = 0; i < 16; ++i ) {
-		BOOST_CHECK_EQUAL(messageData.payload[i], testPayload[i]);
+		BOOST_CHECK_EQUAL(messageData.payloadData[i], testPayload[i]);
 	}
 
 	// Parse
@@ -242,9 +243,10 @@ BOOST_AUTO_TEST_CASE( filePacketMessage )
 	BOOST_CHECK_EQUAL(parsedMessage->type(), Message::FILE_PACKET);
 	BOOST_CHECK_EQUAL(parsedMessage->ufid(), testUfid);
 	BOOST_CHECK_EQUAL(parsedMessage->packetId(), testPacketId);
-	auto parsedPayload = parsedMessage->payload();
-	BOOST_CHECK_EQUAL(parsedPayload.size(), 16);
+	const uint8_t* parsedPayloadData = parsedMessage->payloadData();
+	size_t parsedPayloadSize = parsedMessage->payloadSize();
+	BOOST_CHECK_EQUAL(parsedPayloadSize, 16);
 	for( int i = 0; i < 16; ++i ) {
-		BOOST_CHECK_EQUAL(messageData.payload[i], parsedPayload[i]);
+		BOOST_CHECK_EQUAL(messageData.payloadData[i], parsedPayloadData[i]);
 	}
 }

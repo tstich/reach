@@ -49,13 +49,19 @@ std::shared_ptr<Message> Message::createRequestFilePackets(uint64_t ufid, Range 
 	return message;
 }
 
-std::shared_ptr<Message> Message::createFilePacket(uint64_t ufid, uint64_t packetId, std::vector<uint8_t> payload)
+std::shared_ptr<Message> Message::createFilePacket(uint64_t ufid, uint64_t packetId, const uint8_t* payloadData, size_t payloadSize)
 {
 	std::shared_ptr<Message> message(new Message(FILE_PACKET));
 	message->m_ufid = ufid;
 	message->m_packetId = packetId;
-	message->m_payload = payload;
+	message->m_payloadData = payloadData;
+	message->m_payloadSize = payloadSize;
 	return message;
+}
+
+std::shared_ptr<Message> Message::createFilePacket(uint64_t ufid, uint64_t packetId, const char* payloadData, size_t payloadSize)
+{
+	return createFilePacket(ufid, packetId, reinterpret_cast<const uint8_t*>(payloadData), payloadSize);
 }
 
 std::shared_ptr<Message> Message::fromBuffer(const uint8_t* data, size_t length)
@@ -94,7 +100,8 @@ std::shared_ptr<Message> Message::fromBuffer(const uint8_t* data, size_t length)
 	if( message->m_type == FILE_PACKET ) {
 		message->m_packetId = *reinterpret_cast<const uint64_t*>(data);
 		data += sizeof(uint64_t);		
-		message->m_payload = std::vector<uint8_t>(data, bufferEnd);		
+		message->m_payloadData = data;
+		message->m_payloadSize = bufferEnd - data;		
 	}
 
 	return message;
@@ -132,7 +139,7 @@ std::vector<boost::asio::const_buffer> Message::asBuffer() const {
 
 	if( m_type == FILE_PACKET ) {
 		composite_buffer.push_back(boost::asio::const_buffer(&m_packetId, sizeof(m_packetId)));				
-		composite_buffer.push_back(boost::asio::buffer(m_payload));				
+		composite_buffer.push_back(boost::asio::buffer(m_payloadData, m_payloadSize));				
 	}
 
 

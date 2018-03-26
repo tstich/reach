@@ -197,7 +197,7 @@ int main()
     ReachClient client(io_service);
     boost::asio::spawn(io_service, [&](yield_context yield)
     {
-      client.fetchFile("/some/random/file", yield);
+      client.fetchFile("/Users/timostich/Downloads/vlc-2.2.6.dmg", yield);
     });
     boost::asio::spawn(io_service, [&](yield_context yield) {
       client.receiveMessage(yield);

@@ -7,6 +7,7 @@
 #include <boost/array.hpp>
 #include <boost/asio.hpp>
 #include <boost/bind.hpp>
+#include <boost/iostreams/device/mapped_file.hpp>
 
 #include <Config.h>
 #include <Message.h>
@@ -49,19 +50,24 @@ private:
 
           switch( message->type() ) {
             case Message::REQ_FILE: {
-                auto response = Message::createFileInfo(message->ufid(), 1024 * 100, 1024);
+                BOOST_LOG_TRIVIAL(info) << "Opening File: " << message->path();                
+                m_fileSource.reset(new boost::iostreams::mapped_file_source(message->path()));
+
+                auto response = Message::createFileInfo(message->ufid(), (m_fileSource->size() + 1023) / 1024, 1024);
                 socket_.async_send_to(response->asBuffer(), remote_endpoint_, 
                     ReachServer::noop_handler);
                 break;                
             }
 
             case Message::REQ_FILE_PACKETS: {
-                std::vector<uint8_t> payload(1024);
                 boost::asio::deadline_timer m_throttleTimer(socket_.get_io_service());
-                BOOST_LOG_TRIVIAL(error) << "Sending Packets:" << message->packets().elementCount();
+                //BOOST_LOG_TRIVIAL(error) << "Sending Packets:" << message->packets().elementCount();
 
                 for( int64_t packetId : message->packets() ) {
-                    auto response = Message::createFilePacket(message->ufid(), packetId, payload);
+                    const char* payloadData = m_fileSource->data() + (packetId * 1024);
+                    size_t payloadSize = std::min(1024ull, m_fileSource->size() - (packetId * 1024));
+
+                    auto response = Message::createFilePacket(message->ufid(), packetId, payloadData, payloadSize);
                     socket_.async_send_to(response->asBuffer(), remote_endpoint_, 
                         ReachServer::noop_handler);
 
@@ -79,6 +85,7 @@ private:
     udp::socket socket_;
     udp::endpoint remote_endpoint_;
     boost::array<uint8_t, 102400> recv_buffer_;
+    std::shared_ptr<boost::iostreams::mapped_file_source> m_fileSource;
 };
 
 int main()

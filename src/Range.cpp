@@ -151,7 +151,6 @@ std::shared_ptr<Range> Range::fromBuffer(const uint8_t* data)
 	data += sizeof(uint8_t);
 
 	std::shared_ptr<Range> range(new Range());
-	BOOST_LOG_TRIVIAL(debug) << "Range::fromBuffer: " << intervalCount;
 
 	const uint64_t* numbers = reinterpret_cast<const uint64_t*>(data);
 	for( int i = 0; i < intervalCount; ++i, numbers += 2) {
