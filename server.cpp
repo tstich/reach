@@ -53,7 +53,7 @@ private:
                 BOOST_LOG_TRIVIAL(info) << "Opening File: " << message->path();                
                 m_fileSource.reset(new boost::iostreams::mapped_file_source(message->path()));
 
-                auto response = Message::createFileInfo(message->ufid(), (m_fileSource->size() + 1023) / 1024, 1024);
+                auto response = Message::createFileInfo(message->ufid(), m_fileSource->size(), 1024);
                 socket_.async_send_to(response->asBuffer(), remote_endpoint_, 
                     ReachServer::noop_handler);
                 break;                

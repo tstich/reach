@@ -32,11 +32,11 @@ std::shared_ptr<Message> Message::createReqFile(uint64_t ufid, const char* path)
 	return message;
 }
 
-std::shared_ptr<Message> Message::createFileInfo(uint64_t ufid, uint64_t packetCount, uint64_t packetSize)
+std::shared_ptr<Message> Message::createFileInfo(uint64_t ufid, uint64_t fileSize, uint64_t packetSize)
 {
 	std::shared_ptr<Message> message(new Message(FILE_INFO));
 	message->m_ufid = ufid;
-	message->m_packetCount = packetCount;
+	message->m_fileSize = fileSize;
 	message->m_packetSize = packetSize;
 	return message;
 }
@@ -87,7 +87,7 @@ std::shared_ptr<Message> Message::fromBuffer(const uint8_t* data, size_t length)
 	}
 
 	if( message->m_type == FILE_INFO ) {
-		message->m_packetCount = *reinterpret_cast<const uint64_t*>(data);
+		message->m_fileSize = *reinterpret_cast<const uint64_t*>(data);
 		data += sizeof(uint64_t);		
 		message->m_packetSize = *reinterpret_cast<const uint64_t*>(data);
 		data += sizeof(uint64_t);		
@@ -128,7 +128,7 @@ std::vector<boost::asio::const_buffer> Message::asBuffer() const {
 	}
 
 	if( m_type == FILE_INFO ) {
-		composite_buffer.push_back(boost::asio::const_buffer(&m_packetCount, sizeof(m_packetCount)));				
+		composite_buffer.push_back(boost::asio::const_buffer(&m_fileSize, sizeof(m_fileSize)));				
 		composite_buffer.push_back(boost::asio::const_buffer(&m_packetSize, sizeof(m_packetSize)));				
 	}
 

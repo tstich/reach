@@ -43,7 +43,7 @@ public:
 	TYPE type() const { return m_type; }
 	const char* path() const { return m_path; }
 	uint64_t ufid() const { return m_ufid; }
-	uint64_t packetCount() const { return m_packetCount; }
+	uint64_t fileSize() const { return m_fileSize; }
 	uint64_t packetSize() const { return m_packetSize; }
 	Range packets() const { return m_packets; }
 
@@ -62,7 +62,7 @@ private:
 	uint64_t m_version;
 	char m_path[PATH_LENGTH];
 	uint64_t m_ufid;
-	uint64_t m_packetCount;
+	uint64_t m_fileSize;
 	uint64_t m_packetSize;
 	Range m_packets;
 	uint64_t m_packetId;

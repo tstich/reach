@@ -8,6 +8,7 @@
 #include <boost/asio.hpp>
 #include <boost/asio/spawn.hpp>
 #include <boost/asio/async_result.hpp>
+#include <boost/iostreams/device/mapped_file.hpp>
 
 #include <Config.h>
 #include <Message.h>
@@ -85,8 +86,17 @@ public:
       return;
     } 
 
-    BOOST_LOG_TRIVIAL(info) << "Received fileInfo: " << fileInfoMessage->packetCount();
-    Range outstandingPackets = Range(0, fileInfoMessage->packetCount());
+    BOOST_LOG_TRIVIAL(info) << "Received fileInfo: " << fileInfoMessage->fileSize();
+
+    boost::iostreams::mapped_file_params fileParams;
+    fileParams.path = std::string("client_received.bin");
+    fileParams.new_file_size = fileInfoMessage->fileSize();
+
+    boost::iostreams::mapped_file_sink fileSink(fileParams);
+
+    size_t packetSize = fileInfoMessage->packetSize();
+    size_t packetCount = (fileInfoMessage->fileSize() + packetSize - 1) / packetSize;
+    Range outstandingPackets = Range(0, packetCount);
 
     typedef std::pair<uint32_t, Range> TimedRange;
     std::deque<TimedRange> inflightPackets;    
@@ -97,6 +107,9 @@ public:
 
     m_receiveCallback[ufid] = [&](std::shared_ptr<Message> receivedMessage)
     {
+      char* dest = fileSink.data() + receivedMessage->packetId() * packetSize;
+      memcpy(dest, receivedMessage->payloadData(), receivedMessage->payloadSize());
+
       bool cancelTimer = false;
 
       for( TimedRange &timedRange: inflightPackets ) {
@@ -173,10 +186,10 @@ public:
     high_resolution_clock::time_point t2 = high_resolution_clock::now();    
     auto duration = duration_cast<microseconds>( t2 - t1 ).count();
 
-    BOOST_LOG_TRIVIAL(info) << "Transfer Complete: " << fileInfoMessage->packetCount();
+    BOOST_LOG_TRIVIAL(info) << "Transfer Complete: " << packetCount;
     BOOST_LOG_TRIVIAL(info) << "Total Requested: " << totalRequested;
     BOOST_LOG_TRIVIAL(info) << "Duration: " << duration;
-    BOOST_LOG_TRIVIAL(info) << "Throughput: " << (fileInfoMessage->packetCount() * fileInfoMessage->packetSize()) / duration;
+    BOOST_LOG_TRIVIAL(info) << "Throughput: " << fileInfoMessage->fileSize() / duration;
 
 
   }
