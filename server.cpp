@@ -47,7 +47,7 @@ private:
         if (!error || error == boost::asio::error::message_size)
         {
           auto message = Message::fromBuffer(recv_buffer_.data(), messageSize);
-          size_t packetSize = 1024;
+          size_t packetSize = 8 * 1024;
 
           switch( message->type() ) {
             case Message::REQ_FILE: {
@@ -85,7 +85,7 @@ private:
 private:
     udp::socket socket_;
     udp::endpoint remote_endpoint_;
-    boost::array<uint8_t, 102400> recv_buffer_;
+    boost::array<uint8_t, 1024000> recv_buffer_;
     std::shared_ptr<boost::iostreams::mapped_file_source> m_fileSource;
 };
 
