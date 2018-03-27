@@ -47,16 +47,17 @@ private:
         if (!error || error == boost::asio::error::message_size)
         {
           auto message = Message::fromBuffer(recv_buffer_.data(), messageSize);
+          size_t packetSize = 1024;
 
           switch( message->type() ) {
             case Message::REQ_FILE: {
-                BOOST_LOG_TRIVIAL(info) << "Opening File: " << message->path();                
+                BOOST_LOG_TRIVIAL(info) << "Opening File: " << message->path();
                 m_fileSource.reset(new boost::iostreams::mapped_file_source(message->path()));
 
-                auto response = Message::createFileInfo(message->ufid(), m_fileSource->size(), 1024);
-                socket_.async_send_to(response->asBuffer(), remote_endpoint_, 
+                auto response = Message::createFileInfo(message->ufid(), m_fileSource->size(), packetSize);
+                socket_.async_send_to(response->asBuffer(), remote_endpoint_,
                     ReachServer::noop_handler);
-                break;                
+                break;
             }
 
             case Message::REQ_FILE_PACKETS: {
@@ -64,11 +65,11 @@ private:
                 //BOOST_LOG_TRIVIAL(error) << "Sending Packets:" << message->packets().elementCount();
 
                 for( int64_t packetId : message->packets() ) {
-                    const char* payloadData = m_fileSource->data() + (packetId * 1024);
-                    size_t payloadSize = std::min(1024ull, m_fileSource->size() - (packetId * 1024));
+                    const char* payloadData = m_fileSource->data() + (packetId * packetSize);
+                    size_t payloadSize = std::min(packetSize, m_fileSource->size() - (packetId * packetSize));
 
                     auto response = Message::createFilePacket(message->ufid(), packetId, payloadData, payloadSize);
-                    socket_.async_send_to(response->asBuffer(), remote_endpoint_, 
+                    socket_.async_send_to(response->asBuffer(), remote_endpoint_,
                         ReachServer::noop_handler);
 
                     // m_throttleTimer.expires_from_now(boost::posix_time::microseconds(10));

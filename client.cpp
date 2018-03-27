@@ -9,7 +9,7 @@
 #include <boost/asio/spawn.hpp>
 #include <boost/asio/async_result.hpp>
 #include <boost/iostreams/device/mapped_file.hpp>
-#include <boost/program_options.hpp> 
+#include <boost/program_options.hpp>
 
 #include <Config.h>
 #include <Message.h>
@@ -25,9 +25,9 @@ using namespace std::chrono;
 class ReachClient
 {
 public:
-  ReachClient(boost::asio::io_service& io_service)
-    : m_socket(new udp::socket(io_service)), 
-      m_receiverEndpoint(udp::v4(), REACH_PORT),
+  ReachClient(boost::asio::io_service& io_service, boost::asio::ip::address_v4 address)
+    : m_socket(new udp::socket(io_service)),
+      m_receiverEndpoint(address, REACH_PORT),
       m_nextUfid(0),
       m_shutdown(false)
   {
@@ -41,7 +41,7 @@ public:
       boost::system::error_code ec;
 
       size_t messageSize = m_socket->async_receive_from(
-        boost::asio::buffer(buffer), 
+        boost::asio::buffer(buffer),
         m_receiverEndpoint, yield[ec]);
 
       if( ec == boost::system::errc::success ) {
@@ -83,14 +83,14 @@ public:
       m_socket->async_send_to(fileRequestMessage->asBuffer(), m_receiverEndpoint, yield[ec]);
 
       timer.expires_from_now(boost::posix_time::milliseconds(RECEIVE_TIMEOUT));
-      
-      timer.async_wait(yield[ec]);       
+
+      timer.async_wait(yield[ec]);
     }
-    
+
     if( !fileInfoMessage ) {
       BOOST_LOG_TRIVIAL(error) << "No response from server";
       return;
-    } 
+    }
 
     BOOST_LOG_TRIVIAL(info) << "Received fileInfo: " << fileInfoMessage->fileSize();
 
@@ -105,7 +105,7 @@ public:
     Range outstandingPackets = Range(0, packetCount);
 
     typedef std::pair<uint32_t, Range> TimedRange;
-    std::deque<TimedRange> inflightPackets;    
+    std::deque<TimedRange> inflightPackets;
 
     uint64_t requestSize = 64;
     uint64_t timeoutCount = requestSize / 2;
@@ -124,7 +124,7 @@ public:
           if( timedRange.second.elementCount() == 0  ) {
             cancelTimer = true;
           } else {
-            timedRange.first = 0;            
+            timedRange.first = 0;
           }
 
           break;
@@ -133,7 +133,7 @@ public:
             cancelTimer = true;
           }
         }
-      } 
+      }
 
       if( cancelTimer ) {
         timer.cancel();
@@ -164,7 +164,7 @@ public:
       // BOOST_LOG_TRIVIAL(debug) << "outstandingPackets: " << outstandingPackets.elementCount();
 
       if( totalInflightPackets == 0 && outstandingPackets.elementCount() == 0 ) {
-        m_receiveCallback.erase(ufid);        
+        m_receiveCallback.erase(ufid);
         break;
       }
 
@@ -175,12 +175,12 @@ public:
 
         inflightPackets.push_back(TimedRange(0, requestRange));
         auto reqFilePacketsMessage = Message::createRequestFilePackets(ufid, requestRange);
-        m_socket->async_send_to(reqFilePacketsMessage->asBuffer(), m_receiverEndpoint, yield[ec]);      
+        m_socket->async_send_to(reqFilePacketsMessage->asBuffer(), m_receiverEndpoint, yield[ec]);
       }
 
       if( totalInflightPackets > requestSize || outstandingPackets.elementCount() < requestSize ) {
         timer.expires_from_now(boost::posix_time::milliseconds(10));
-        timer.async_wait(yield[ec]);       
+        timer.async_wait(yield[ec]);
 
         if( ec == boost::system::errc::success ) {
           for( TimedRange &timedRange: inflightPackets) {
@@ -189,7 +189,7 @@ public:
         }
       }
     }
-    high_resolution_clock::time_point t2 = high_resolution_clock::now();    
+    high_resolution_clock::time_point t2 = high_resolution_clock::now();
     auto duration = duration_cast<microseconds>( t2 - t1 ).count();
 
     BOOST_LOG_TRIVIAL(info) << "Transfer Complete: " << packetCount;
@@ -201,7 +201,7 @@ public:
     m_socket->cancel();
   }
 
-private: 
+private:
   std::shared_ptr<udp::socket> m_socket;
   udp::endpoint m_receiverEndpoint;
 
@@ -213,40 +213,47 @@ private:
 
 int main(int argc, char** argv)
 {
-    namespace po = boost::program_options; 
-    po::options_description desc("Copy Files via REACH UDP"); 
-    desc.add_options() 
+    namespace po = boost::program_options;
+    po::options_description desc("Copy Files via REACH UDP");
+    desc.add_options()
       ("help", "Print help messages")
       ("file", po::value<std::string>()->required(), "File on server to be copied");
-      
-    po::positional_options_description positionalOptions; 
-    positionalOptions.add("file", 1); 
+      ("address", "Address of the client");
 
-    po::variables_map vm; 
-    try 
-    { 
-      po::store(po::command_line_parser(argc, argv).options(desc).positional(positionalOptions).run(),  
+    po::positional_options_description positionalOptions;
+    positionalOptions.add("file", 1);
+
+    po::variables_map vm;
+    try
+    {
+      po::store(po::command_line_parser(argc, argv).options(desc).positional(positionalOptions).run(),
                 vm);
- 
-      if ( vm.count("help")  ) 
-      { 
-        std::cout << desc << std::endl; 
-        return 0; 
-      } 
- 
-      po::notify(vm); // throws on error, so do after help in case 
-                      // there are any problems 
-    } 
-    catch(po::error& e) 
-    { 
-      std::cerr << "ERROR: " << e.what() << std::endl << std::endl; 
-      std::cerr << desc << std::endl; 
-      return 1; 
-    } 
+
+      if ( vm.count("help")  )
+      {
+        std::cout << desc << std::endl;
+        return 0;
+      }
+
+      po::notify(vm); // throws on error, so do after help in case
+                      // there are any problems
+    }
+    catch(po::error& e)
+    {
+      std::cerr << "ERROR: " << e.what() << std::endl << std::endl;
+      std::cerr << desc << std::endl;
+      return 1;
+    }
   try
   {
     boost::asio::io_service io_service;
-    ReachClient client(io_service);
+    std::string address("127.0.0.1");
+    if( vm.count("address") ) {
+      address = vm["address"].as<std::string>();
+    }
+    boost::asio::ip::address_v4 targetIP = boost::asio::ip::address_v4::from_string(address);
+
+    ReachClient client(io_service, targetIP);
     boost::asio::spawn(io_service, [&](yield_context yield)
     {
       client.fetchFile(vm["file"].as<std::string>().c_str() , yield);
@@ -254,7 +261,7 @@ int main(int argc, char** argv)
     boost::asio::spawn(io_service, [&](yield_context yield) {
       client.receiveMessage(yield);
     });
-    
+
     io_service.run();
   }
   catch (std::exception& e)
