@@ -28,7 +28,7 @@ public:
   ReachClient(boost::asio::io_service& io_service, boost::asio::ip::address_v4 address)
     : m_socket(new udp::socket(io_service)),
       m_receiverEndpoint(address, REACH_PORT),
-      m_nextUfid(0),
+      m_nextUfid(1),
       m_shutdown(false)
   {
     m_socket->open(udp::v4());
@@ -70,11 +70,13 @@ public:
 
     m_receiveCallback[ufid] = [&](std::shared_ptr<Message> receivedMessage)
     {
-      // Store the fileInfoMessage when it is received
-      fileInfoMessage = receivedMessage;
+      if( receivedMessage->type() == Message::FILE_INFO ) {
+        // Store the fileInfoMessage when it is received
+        fileInfoMessage = receivedMessage;
 
-      // Cancel timeout timer -> unblock async_wait
-      timer.cancel();
+        // Cancel timeout timer -> unblock async_wait
+        timer.cancel();
+      }
     };
 
     for( int i = 0; i < SEND_RETRY && !fileInfoMessage; ++i) {
@@ -107,36 +109,45 @@ public:
     typedef std::pair<uint32_t, Range> TimedRange;
     std::deque<TimedRange> inflightPackets;
 
-    uint64_t requestSize = 64;
+    uint64_t requestSize = 8;
     uint64_t timeoutCount = requestSize / 2;
-    uint64_t throttleCount = 8 * requestSize;
+    uint64_t throttleCount = 32 * requestSize;
+    uint64_t totalUnexpectedPackages = 0;
 
     m_receiveCallback[ufid] = [&](std::shared_ptr<Message> receivedMessage)
     {
-      char* dest = fileSink.data() + receivedMessage->packetId() * packetSize;
-      memcpy(dest, receivedMessage->payloadData(), receivedMessage->payloadSize());
+      if( receivedMessage->type() == Message::FILE_PACKET ) {
+        char* dest = fileSink.data() + receivedMessage->packetId() * packetSize;
+        memcpy(dest, receivedMessage->payloadData(), receivedMessage->payloadSize());
 
-      bool cancelTimer = false;
+        bool cancelTimer = false;
+        bool expectedPackage = false;
 
-      for( TimedRange &timedRange: inflightPackets ) {
-        if( timedRange.second.contains(receivedMessage->packetId())) {
-          timedRange.second.subtract(receivedMessage->packetId());
-          if( timedRange.second.elementCount() == 0  ) {
-            cancelTimer = true;
+        for( TimedRange &timedRange: inflightPackets ) {
+          if( timedRange.second.contains(receivedMessage->packetId())) {
+            expectedPackage = true;
+            timedRange.second.subtract(receivedMessage->packetId());
+            if( timedRange.second.elementCount() == 0  ) {
+              cancelTimer = true;
+            } else {
+              timedRange.first = 0;
+            }
+
+            break;
           } else {
-            timedRange.first = 0;
-          }
-
-          break;
-        } else {
-          if( timedRange.first++ > timeoutCount ) {
-            cancelTimer = true;
+            if( timedRange.first++ > timeoutCount ) {
+              cancelTimer = true;
+            }
           }
         }
-      }
 
-      if( cancelTimer ) {
-        timer.cancel();
+        if( !expectedPackage ) {
+          totalUnexpectedPackages++;
+        }
+
+        if( cancelTimer ) {
+          timer.cancel();
+        }
       }
     };
 
@@ -183,6 +194,8 @@ public:
         timer.async_wait(yield[ec]);
 
         if( ec == boost::system::errc::success ) {
+          BOOST_LOG_TRIVIAL(debug) << "Timeout: " << static_cast<float>(outstandingPackets.elementCount()) / packetCount;
+
           for( TimedRange &timedRange: inflightPackets) {
             timedRange.first += timeoutCount / inflightPackets.size();
           }
@@ -194,6 +207,7 @@ public:
 
     BOOST_LOG_TRIVIAL(info) << "Transfer Complete: " << packetCount;
     BOOST_LOG_TRIVIAL(info) << "Total Requested: " << totalRequested;
+    BOOST_LOG_TRIVIAL(info) << "Total Unexpected Packages: " << totalUnexpectedPackages;
     BOOST_LOG_TRIVIAL(info) << "Duration: " << duration;
     BOOST_LOG_TRIVIAL(info) << "Throughput: " << fileInfoMessage->fileSize() / duration;
 
@@ -217,8 +231,8 @@ int main(int argc, char** argv)
     po::options_description desc("Copy Files via REACH UDP");
     desc.add_options()
       ("help", "Print help messages")
-      ("file", po::value<std::string>()->required(), "File on server to be copied");
-      ("address", "Address of the client");
+      ("file", po::value<std::string>()->required(), "File on server to be copied")
+      ("address", po::value<std::string>(), "Address of the client");
 
     po::positional_options_description positionalOptions;
     positionalOptions.add("file", 1);

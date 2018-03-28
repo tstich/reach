@@ -73,12 +73,12 @@ std::shared_ptr<Message> Message::fromBuffer(const uint8_t* data, size_t length)
 
 	if( message->m_type == ALIVE ) {
 		message->m_version = *reinterpret_cast<const uint64_t*>(data);
-		data += sizeof(uint64_t);		
+		data += sizeof(uint64_t);
 	}
 
 	if( message->m_type == REQ_FILE || message->m_type == FILE_INFO || message->m_type == REQ_FILE_PACKETS || message->m_type == FILE_PACKET ) {
 		message->m_ufid = *reinterpret_cast<const uint64_t*>(data);
-		data += sizeof(uint64_t);		
+		data += sizeof(uint64_t);
 	}
 
 	if( message->m_type == REQ_FILE ) {
@@ -88,9 +88,9 @@ std::shared_ptr<Message> Message::fromBuffer(const uint8_t* data, size_t length)
 
 	if( message->m_type == FILE_INFO ) {
 		message->m_fileSize = *reinterpret_cast<const uint64_t*>(data);
-		data += sizeof(uint64_t);		
+		data += sizeof(uint64_t);
 		message->m_packetSize = *reinterpret_cast<const uint64_t*>(data);
-		data += sizeof(uint64_t);		
+		data += sizeof(uint64_t);
 	}
 
 	if( message->m_type == REQ_FILE_PACKETS ) {
@@ -99,9 +99,9 @@ std::shared_ptr<Message> Message::fromBuffer(const uint8_t* data, size_t length)
 
 	if( message->m_type == FILE_PACKET ) {
 		message->m_packetId = *reinterpret_cast<const uint64_t*>(data);
-		data += sizeof(uint64_t);		
+		data += sizeof(uint64_t);
 		message->m_payloadData = data;
-		message->m_payloadSize = bufferEnd - data;		
+		message->m_payloadSize = bufferEnd - data;
 	}
 
 	return message;
@@ -116,20 +116,20 @@ std::vector<boost::asio::const_buffer> Message::asBuffer() const {
 	composite_buffer.push_back(boost::asio::const_buffer(&m_type, sizeof(m_type)));
 
 	if( m_type == ALIVE ) {
-		composite_buffer.push_back(boost::asio::const_buffer(&m_version, sizeof(m_version)));		
+		composite_buffer.push_back(boost::asio::const_buffer(&m_version, sizeof(m_version)));
 	}
 
 	if( m_type == REQ_FILE || m_type == FILE_INFO || m_type == REQ_FILE_PACKETS || m_type == FILE_PACKET ) {
-		composite_buffer.push_back(boost::asio::const_buffer(&m_ufid, sizeof(m_ufid)));				
+		composite_buffer.push_back(boost::asio::const_buffer(&m_ufid, sizeof(m_ufid)));
 	}
 
 	if( m_type == REQ_FILE ) {
-		composite_buffer.push_back(boost::asio::const_buffer(&m_path, sizeof(m_path)));				
+		composite_buffer.push_back(boost::asio::const_buffer(&m_path, sizeof(m_path)));
 	}
 
 	if( m_type == FILE_INFO ) {
-		composite_buffer.push_back(boost::asio::const_buffer(&m_fileSize, sizeof(m_fileSize)));				
-		composite_buffer.push_back(boost::asio::const_buffer(&m_packetSize, sizeof(m_packetSize)));				
+		composite_buffer.push_back(boost::asio::const_buffer(&m_fileSize, sizeof(m_fileSize)));
+		composite_buffer.push_back(boost::asio::const_buffer(&m_packetSize, sizeof(m_packetSize)));
 	}
 
 	if( m_type == REQ_FILE_PACKETS ) {
@@ -138,8 +138,8 @@ std::vector<boost::asio::const_buffer> Message::asBuffer() const {
 	}
 
 	if( m_type == FILE_PACKET ) {
-		composite_buffer.push_back(boost::asio::const_buffer(&m_packetId, sizeof(m_packetId)));				
-		composite_buffer.push_back(boost::asio::buffer(m_payloadData, m_payloadSize));				
+		composite_buffer.push_back(boost::asio::const_buffer(&m_packetId, sizeof(m_packetId)));
+		composite_buffer.push_back(boost::asio::buffer(m_payloadData, m_payloadSize));
 	}
 
 
