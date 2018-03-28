@@ -23,7 +23,8 @@ class ReachServer
 {
 public:
     ReachServer(boost::asio::io_service& io_service)
-    : socket_(io_service, udp::endpoint(udp::v4(), REACH_PORT))
+    : socket_(io_service, udp::endpoint(udp::v4(), REACH_PORT)),
+        m_timer(io_service)
     {
         start_receive();
     }
@@ -65,12 +66,15 @@ private:
                 //BOOST_LOG_TRIVIAL(error) << "Sending Packets:" << message->packets().elementCount();
 
                 for( int64_t packetId : message->packets() ) {
+                    m_timer.expires_from_now(boost::posix_time::microseconds(40));
                     const char* payloadData = m_fileSource->data() + (packetId * packetSize);
                     size_t payloadSize = std::min(packetSize, m_fileSource->size() - (packetId * packetSize));
 
                     auto response = Message::createFilePacket(message->ufid(), packetId, payloadData, payloadSize);
                     socket_.async_send_to(response->asBuffer(), remote_endpoint_,
                         ReachServer::noop_handler);
+
+                    m_timer.wait();
 
                     // m_throttleTimer.expires_from_now(boost::posix_time::microseconds(10));
                     // m_throttleTimer.wait();
@@ -87,6 +91,8 @@ private:
     udp::endpoint remote_endpoint_;
     boost::array<uint8_t, 1024000> recv_buffer_;
     std::shared_ptr<boost::iostreams::mapped_file_source> m_fileSource;
+    boost::asio::deadline_timer m_timer;
+
 };
 
 int main()
