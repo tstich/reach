@@ -58,7 +58,7 @@ public:
                     for( int64_t packetId : message->packets() ) {
                         throttle_timer.expires_from_now(boost::posix_time::microseconds(100));
                         const char* payloadData = m_fileSource->data() + (packetId * packetSize);
-                        size_t payloadSize = std::min(packetSize, m_fileSource->size() - (packetId * packetSize));
+                        size_t payloadSize = std::min(packetSize, static_cast<size_t>(m_fileSource->size() - (packetId * packetSize)));
 
                         auto response = Message::createFilePacket(message->ufid(), packetId, payloadData, payloadSize);
                         socket_.async_send_to(response->asBuffer(), remote_endpoint_, yield);
