@@ -114,6 +114,8 @@ public:
     uint64_t throttleCount = 32 * requestSize;
     uint64_t totalUnexpectedPackages = 0;
 
+    std::vector<uint64_t> lostSize(requestSize+1, 0);
+
     m_receiveCallback[ufid] = [&](std::shared_ptr<Message> receivedMessage)
     {
       if( receivedMessage->type() == Message::FILE_PACKET ) {
@@ -153,6 +155,9 @@ public:
 
     high_resolution_clock::time_point t1 = high_resolution_clock::now();
     uint64_t totalRequested = 0;
+    boost::asio::deadline_timer m_throttleTimer(m_socket->get_io_service());
+    m_throttleTimer.expires_from_now(boost::posix_time::microseconds(0));
+
     for(;;)
     {
       int64_t totalInflightPackets = 0;
@@ -165,13 +170,13 @@ public:
           it = inflightPackets.erase(it);
         } else if( it->first > timeoutCount ) {
           // Detected dropped packets -> request again
+          lostSize[it->second.elementCount()]++;
           outstandingPackets.add(it->second);
           it = inflightPackets.erase(it);
         } else {
           ++it;
         }
       }
-      // BOOST_LOG_TRIVIAL(debug) << "inflightPackets: " << totalInflightPackets;
       // BOOST_LOG_TRIVIAL(debug) << "outstandingPackets: " << outstandingPackets.elementCount();
 
       if( totalInflightPackets == 0 && outstandingPackets.elementCount() == 0 ) {
@@ -186,7 +191,9 @@ public:
 
         inflightPackets.push_back(TimedRange(0, requestRange));
         auto reqFilePacketsMessage = Message::createRequestFilePackets(ufid, requestRange);
+        m_throttleTimer.async_wait(yield[ec]);
         m_socket->async_send_to(reqFilePacketsMessage->asBuffer(), m_receiverEndpoint, yield[ec]);
+        m_throttleTimer.expires_from_now(boost::posix_time::microseconds(1000));
       }
 
       if( totalInflightPackets > requestSize || outstandingPackets.elementCount() < requestSize ) {
@@ -195,6 +202,10 @@ public:
 
         if( ec == boost::system::errc::success ) {
           BOOST_LOG_TRIVIAL(debug) << "Timeout: " << static_cast<float>(outstandingPackets.elementCount()) / packetCount;
+          BOOST_LOG_TRIVIAL(debug) << "inflightPackets: " << totalInflightPackets;
+          for( int i=0; i < requestSize+1; ++i) {
+            BOOST_LOG_TRIVIAL(info) << "Lost Statistics " << i << ": " << lostSize[i];
+          }
 
           for( TimedRange &timedRange: inflightPackets) {
             timedRange.first += timeoutCount / inflightPackets.size();
@@ -210,6 +221,7 @@ public:
     BOOST_LOG_TRIVIAL(info) << "Total Unexpected Packages: " << totalUnexpectedPackages;
     BOOST_LOG_TRIVIAL(info) << "Duration: " << duration;
     BOOST_LOG_TRIVIAL(info) << "Throughput: " << fileInfoMessage->fileSize() / duration;
+
 
     m_shutdown = true;
     m_socket->cancel();
