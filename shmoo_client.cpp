@@ -29,10 +29,13 @@ public:
     : m_socket(new udp::socket(io_service)),
       m_receiverEndpoint(address, REACH_PORT),
       m_nextUfid(1),
+      m_nextReqid(1),
       m_shutdown(0)
   {
     m_socket->open(udp::v4());
-    m_socket->set_option(boost::asio::socket_base::receive_buffer_size(10 * 1024 * 1024));
+    boost::asio::spawn(io_service, [&](yield_context yield) {
+      receiveMessage(yield);
+    });
   }
 
   void shutdown() {
@@ -43,6 +46,140 @@ public:
     if( m_shutdown >= 10 ) {
       m_socket->cancel();
     }
+  }
+
+
+  void fetchFileAsync(const char* path) {
+    std::shared_ptr<std::vector<size_t> > ranges(new std::vector<size_t>());
+    for( size_t i = 0; i < REQUEST_PREFETCH; i += REQUEST_SIZE) {
+      ranges->push_back(i);
+    }
+
+
+
+    boost::asio::spawn(m_socket->get_io_service(), [ranges, this, path](yield_context yield)
+    {
+      uint64_t ufid = m_nextUfid++;
+
+      boost::system::error_code ec;
+      auto fileRequestMessage = Message::createReqFile(ufid, path);
+
+      boost::asio::deadline_timer timer(m_socket->get_io_service());
+
+      std::shared_ptr<Message> fileInfoMessage;
+
+      m_receiveCallback[ufid] = [&](std::shared_ptr<Message> receivedMessage)
+      {
+        if( receivedMessage->type() == Message::FILE_INFO ) {
+          // Store the fileInfoMessage when it is received
+          fileInfoMessage = receivedMessage;
+
+          // Cancel timeout timer -> unblock async_wait
+          timer.cancel();
+        }
+      };
+
+      for( int i = 0; i < SEND_RETRY && !fileInfoMessage; ++i) {
+
+        BOOST_LOG_TRIVIAL(info) << "Sending fileRequest: " << path;
+        m_socket->async_send_to(fileRequestMessage->asBuffer(), m_receiverEndpoint, yield[ec]);
+
+        timer.expires_from_now(boost::posix_time::milliseconds(RECEIVE_TIMEOUT));
+
+        timer.async_wait(yield[ec]);
+      }
+      
+
+      m_receiveCallback.erase(ufid);
+
+      if( !fileInfoMessage ) {
+        BOOST_LOG_TRIVIAL(error) << "No response from server";
+        return;
+      } 
+
+      size_t fileSize = fileInfoMessage->fileSize();
+      boost::iostreams::mapped_file_params fileParams;
+      fileParams.path = std::string("client_received.bin");
+      fileParams.new_file_size = fileSize;
+      m_fileSink.reset(new boost::iostreams::mapped_file_sink(fileParams));
+
+      size_t totalPackets = (fileSize + fileInfoMessage->packetSize() - 1) / fileInfoMessage->packetSize();
+      BOOST_LOG_TRIVIAL(info) << "Total Packet Count : " << totalPackets;
+
+      for( size_t i = REQUEST_PREFETCH; i < totalPackets; i += REQUEST_SIZE) {
+        ranges->push_back(i);
+      }
+
+    });
+
+
+    for( size_t i = 0; i < 10; i++) {
+      boost::asio::spawn(m_socket->get_io_service(), [this, ranges](yield_context yield)
+      {
+        while( !ranges->empty() ) {
+          size_t startOffset = ranges->back();
+          ranges->pop_back();
+          size_t remainingPackets = packetRequest(Range(startOffset, startOffset + REQUEST_SIZE), yield);
+          if( remainingPackets > 0 ) {
+            ranges->push_back(startOffset);
+          }
+        }
+        shutdown();
+      });
+    }
+
+  }
+
+private:
+  size_t packetRequest(Range requestRange, boost::asio::yield_context yield) {
+    uint64_t ufid = m_nextUfid++;
+
+    boost::system::error_code ec;
+
+    // Request parameters
+    double received = .0;
+    std::vector<high_resolution_clock::time_point> receiveTime;
+    boost::asio::deadline_timer timer(m_socket->get_io_service());
+    BOOST_LOG_TRIVIAL(info) << "===================================================";
+    BOOST_LOG_TRIVIAL(info) << "Sending PacketRequest: " << requestRange.elementCount() << " - " << ufid;
+
+    // Receive Logic
+    m_receiveCallback[ufid] = [&](std::shared_ptr<Message> receivedMessage)
+    {
+      if( receivedMessage->type() == Message::FILE_PACKET ) {
+        char* dest = m_fileSink->data() + receivedMessage->packetId() * 8 * 1024;
+        memcpy(dest, receivedMessage->payloadData(), receivedMessage->payloadSize());
+
+        receiveTime.push_back(high_resolution_clock::now());
+        requestRange.subtract(receivedMessage->packetId());
+        received += 1.0;
+        if( requestRange.elementCount() == 0) {
+          timer.cancel();
+        }
+      }
+    };
+
+    // Send packet request and wait for max 10 seconds
+    auto reqFilePacketsMessage = Message::createRequestFilePackets(ufid, requestRange);
+    high_resolution_clock::time_point t1 = high_resolution_clock::now();
+    m_socket->async_send_to(reqFilePacketsMessage->asBuffer(), m_receiverEndpoint, yield[ec]);
+    timer.expires_from_now(boost::posix_time::milliseconds(200));
+    timer.async_wait(yield[ec]);
+    
+    m_receiveCallback.erase(ufid);
+
+    size_t remainingPackets = requestRange.elementCount();
+    // Plot Results
+
+    BOOST_LOG_TRIVIAL(info) << "Remaining Packets: " << remainingPackets;
+    if( receiveTime.size() > 0 ) {
+      BOOST_LOG_TRIVIAL(info) << "Remaining Details:" << requestRange.toString();
+      BOOST_LOG_TRIVIAL(info) << "Latency For First:" << duration_cast<microseconds>( receiveTime.front() - t1 ).count();
+      BOOST_LOG_TRIVIAL(info) << "Latency Till Last:" << duration_cast<microseconds>( receiveTime.back() - t1 ).count();
+      BOOST_LOG_TRIVIAL(info) << "Net Throughput Till Last:" << (8 * 1024 * received) / duration_cast<microseconds>( receiveTime.back() - receiveTime.front() ).count();
+    }
+
+    return remainingPackets;
   }
 
   void receiveMessage(boost::asio::yield_context yield) {
@@ -68,81 +205,15 @@ public:
     }
   }
 
-  size_t packetTest(Range requestRange, boost::asio::yield_context yield) {
-
-    boost::system::error_code ec;
-
-    // Request parameters
-    uint64_t ufid = m_nextUfid++;
-    double received = .0;
-    std::vector<high_resolution_clock::time_point> receiveTime;
-    boost::asio::deadline_timer timer(m_socket->get_io_service());
-    BOOST_LOG_TRIVIAL(info) << "===================================================";
-    BOOST_LOG_TRIVIAL(info) << "Sending PacketRequest: " << requestRange.elementCount() << " - " << ufid;
-
-    // Receive Logic
-    m_receiveCallback[ufid] = [&](std::shared_ptr<Message> receivedMessage)
-    {
-      if( receivedMessage->type() == Message::FILE_PACKET ) {
-        receiveTime.push_back(high_resolution_clock::now());
-        requestRange.subtract(receivedMessage->packetId());
-        received += 1.0;
-        if( requestRange.elementCount() == 0) {
-          timer.cancel();
-        }
-      }
-    };
-
-    // Send packet request and wait for max 10 seconds
-    auto reqFilePacketsMessage = Message::createRequestFilePackets(ufid, requestRange);
-    high_resolution_clock::time_point t1 = high_resolution_clock::now();
-    m_socket->async_send_to(reqFilePacketsMessage->asBuffer(), m_receiverEndpoint, yield[ec]);
-    timer.expires_from_now(boost::posix_time::milliseconds(200));
-    timer.async_wait(yield[ec]);
-    m_receiveCallback.erase(ufid);
-
-    size_t remainingPackets = requestRange.elementCount();
-    // Plot Results
-
-    BOOST_LOG_TRIVIAL(info) << "Remaining Packets: " << remainingPackets;
-    if( receiveTime.size() > 0 ) {
-      BOOST_LOG_TRIVIAL(info) << "Remaining Details:" << requestRange.toString();
-      BOOST_LOG_TRIVIAL(info) << "Latency For First:" << duration_cast<microseconds>( receiveTime.front() - t1 ).count();
-      BOOST_LOG_TRIVIAL(info) << "Latency Till Last:" << duration_cast<microseconds>( receiveTime.back() - t1 ).count();
-      BOOST_LOG_TRIVIAL(info) << "Net Throughput Till Last:" << (8 * 1024 * received) / duration_cast<microseconds>( receiveTime.back() - receiveTime.front() ).count();
-    }
-
-    return remainingPackets;
-
-    // double total_time = 0
-    // for( auto t2 : receiveTime) {
-    //   total_time += duration_cast<microseconds>( t2 - t1 ).count();
-    // }
-    // BOOST_LOG_TRIVIAL(info) << "Average Details:" << requestRange.toString();
-
-  }
-
-  void packetTestShmoo(size_t numPackets, boost::asio::yield_context yield) {
-    size_t stepSize = numPackets / 10;
-
-    for( size_t i = 0; i < 100; ++i) {
-        packetTest(Range(0,32), yield);
-    }
-    // for( size_t i = stepSize; i<=numPackets; i+= stepSize) {
-    //     packetTest(i, yield);
-    // }
-    m_shutdown = true;
-    m_socket->cancel();
-
-  }
-
 
 private:
   std::shared_ptr<udp::socket> m_socket;
   udp::endpoint m_receiverEndpoint;
 
   std::atomic<uint64_t> m_nextUfid;
+  std::atomic<uint64_t> m_nextReqid;
   std::map<uint64_t, std::function<void(std::shared_ptr<Message>)> > m_receiveCallback;
+  std::shared_ptr<boost::iostreams::mapped_file_sink> m_fileSink;
 
   size_t m_shutdown;
 };
@@ -153,7 +224,7 @@ int main(int argc, char** argv)
     po::options_description desc("Copy Files via REACH UDP");
     desc.add_options()
       ("help", "Print help messages")
-      ("packets", po::value<size_t>()->required(), "Packets to shmoo")
+      ("file", po::value<std::string>()->required(), "File on server to be copied")
       ("address", po::value<std::string>(), "Address of the client");
 
     po::positional_options_description positionalOptions;
@@ -190,31 +261,7 @@ int main(int argc, char** argv)
     boost::asio::ip::address_v4 targetIP = boost::asio::ip::address_v4::from_string(address);
 
     ReachClient client(io_service, targetIP);
-    boost::asio::spawn(io_service, [&](yield_context yield) {
-      client.receiveMessage(yield);
-    });
-
-
-    std::vector<size_t> ranges;
-    size_t requestSize = 32;
-    for( size_t i = 0; i < 10240; i += requestSize) {
-      ranges.push_back(i);
-    }
-
-    for( size_t i = 0; i < 10; i++) {
-      boost::asio::spawn(io_service, [&](yield_context yield)
-      {
-        while( !ranges.empty() ) {
-          size_t startOffset = ranges.back();
-          ranges.pop_back();
-          size_t remainingPackets = client.packetTest(Range(startOffset, startOffset + requestSize), yield);
-          if( remainingPackets > 0 ) {
-            ranges.push_back(startOffset);
-          }
-        }
-        client.shutdown();
-      });
-    }
+    client.fetchFileAsync(vm["file"].as<std::string>().c_str());
 
     io_service.run();
   }
