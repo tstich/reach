@@ -13,15 +13,23 @@ include_directories(include)
 add_library(reach_common STATIC src/Message.cpp src/Range.cpp)
 target_link_libraries(reach_common ${Boost_LIBRARIES})
 
-# Server Application
 include_directories(.)
+
+# Server Application
 add_executable(reach_server server.cpp)
 target_link_libraries(reach_server reach_common)
 
 # Client Application
-
 add_executable(reach_client client.cpp)
 target_link_libraries(reach_client reach_common)
+
+# Server Application
+add_executable(reach_shmoo_server shmoo_server.cpp)
+target_link_libraries(reach_shmoo_server reach_common)
+
+# Client Application
+add_executable(reach_shmoo_client shmoo_client.cpp)
+target_link_libraries(reach_shmoo_client reach_common)
 
 
 # Unit Test
@@ -42,12 +50,12 @@ foreach(testSrc ${TEST_SRCS})
         target_link_libraries(${testName} ${Boost_LIBRARIES} reach_common)
 
         #I like to move testing binaries into a testBin directory
-        set_target_properties(${testName} PROPERTIES 
+        set_target_properties(${testName} PROPERTIES
             RUNTIME_OUTPUT_DIRECTORY  ${CMAKE_CURRENT_BINARY_DIR}/testBin)
 
-        #Finally add it to test execution - 
+        #Finally add it to test execution -
         #Notice the WORKING_DIRECTORY and COMMAND
-        add_test(NAME ${testName} 
-                 WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/testBin 
+        add_test(NAME ${testName}
+                 WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/testBin
                  COMMAND ${CMAKE_CURRENT_BINARY_DIR}/testBin/${testName} )
 endforeach(testSrc)
