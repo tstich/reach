@@ -109,7 +109,7 @@ public:
     typedef std::pair<uint32_t, Range> TimedRange;
     std::deque<TimedRange> inflightPackets;
 
-    uint64_t requestSize = 8;
+    uint64_t requestSize = 10;
     uint64_t timeoutCount = requestSize / 2;
     uint64_t throttleCount = 32 * requestSize;
     uint64_t totalUnexpectedPackages = 0;
@@ -197,7 +197,7 @@ public:
       }
 
       if( totalInflightPackets > requestSize || outstandingPackets.elementCount() < requestSize ) {
-        timer.expires_from_now(boost::posix_time::milliseconds(10));
+        timer.expires_from_now(boost::posix_time::milliseconds(100));
         timer.async_wait(yield[ec]);
 
         if( ec == boost::system::errc::success ) {

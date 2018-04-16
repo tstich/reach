@@ -35,6 +35,7 @@ public:
 
 	// Range to Buffer
 	std::vector<boost::asio::const_buffer> asBuffer() const;
+    std::string toString() const;
 
 
 public:

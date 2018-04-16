@@ -29,15 +29,26 @@ public:
     : m_socket(new udp::socket(io_service)),
       m_receiverEndpoint(address, REACH_PORT),
       m_nextUfid(1),
-      m_shutdown(false)
+      m_shutdown(0)
   {
     m_socket->open(udp::v4());
+    m_socket->set_option(boost::asio::socket_base::receive_buffer_size(10 * 1024 * 1024));
+  }
+
+  void shutdown() {
+    m_shutdown++;
+    BOOST_LOG_TRIVIAL(info) << "===================================================";
+    BOOST_LOG_TRIVIAL(info) << "Shutdown: " << m_shutdown;
+
+    if( m_shutdown >= 10 ) {
+      m_socket->cancel();
+    }
   }
 
   void receiveMessage(boost::asio::yield_context yield) {
     boost::array<uint8_t, MAX_MESSAGE_SIZE> buffer;
 
-    while(!m_shutdown) {
+    while(m_shutdown < 10) {
       boost::system::error_code ec;
 
       size_t messageSize = m_socket->async_receive_from(
@@ -57,23 +68,25 @@ public:
     }
   }
 
-  void packetTest(size_t numPackets, boost::asio::yield_context yield) {
+  size_t packetTest(Range requestRange, boost::asio::yield_context yield) {
 
-    BOOST_LOG_TRIVIAL(info) << "Sending PacketRequest: " << numPackets;
     boost::system::error_code ec;
 
     // Request parameters
     uint64_t ufid = m_nextUfid++;
-    Range requestRange(0,numPackets);
-    std::vector<high_resolution_clock::time_point> receiveTime(numPackets);
+    double received = .0;
+    std::vector<high_resolution_clock::time_point> receiveTime;
     boost::asio::deadline_timer timer(m_socket->get_io_service());
+    BOOST_LOG_TRIVIAL(info) << "===================================================";
+    BOOST_LOG_TRIVIAL(info) << "Sending PacketRequest: " << requestRange.elementCount() << " - " << ufid;
 
     // Receive Logic
     m_receiveCallback[ufid] = [&](std::shared_ptr<Message> receivedMessage)
     {
       if( receivedMessage->type() == Message::FILE_PACKET ) {
-        receiveTime[receivedMessage->packetId()] = high_resolution_clock::now();
+        receiveTime.push_back(high_resolution_clock::now());
         requestRange.subtract(receivedMessage->packetId());
+        received += 1.0;
         if( requestRange.elementCount() == 0) {
           timer.cancel();
         }
@@ -84,20 +97,40 @@ public:
     auto reqFilePacketsMessage = Message::createRequestFilePackets(ufid, requestRange);
     high_resolution_clock::time_point t1 = high_resolution_clock::now();
     m_socket->async_send_to(reqFilePacketsMessage->asBuffer(), m_receiverEndpoint, yield[ec]);
-    timer.expires_from_now(boost::posix_time::seconds(10));
+    timer.expires_from_now(boost::posix_time::milliseconds(200));
     timer.async_wait(yield[ec]);
+    m_receiveCallback.erase(ufid);
 
+    size_t remainingPackets = requestRange.elementCount();
     // Plot Results
-    BOOST_LOG_TRIVIAL(info) << "Remaining Packets: " << requestRange.elementCount();
+
+    BOOST_LOG_TRIVIAL(info) << "Remaining Packets: " << remainingPackets;
+    if( receiveTime.size() > 0 ) {
+      BOOST_LOG_TRIVIAL(info) << "Remaining Details:" << requestRange.toString();
+      BOOST_LOG_TRIVIAL(info) << "Latency For First:" << duration_cast<microseconds>( receiveTime.front() - t1 ).count();
+      BOOST_LOG_TRIVIAL(info) << "Latency Till Last:" << duration_cast<microseconds>( receiveTime.back() - t1 ).count();
+      BOOST_LOG_TRIVIAL(info) << "Net Throughput Till Last:" << (8 * 1024 * received) / duration_cast<microseconds>( receiveTime.back() - receiveTime.front() ).count();
+    }
+
+    return remainingPackets;
+
+    // double total_time = 0
+    // for( auto t2 : receiveTime) {
+    //   total_time += duration_cast<microseconds>( t2 - t1 ).count();
+    // }
+    // BOOST_LOG_TRIVIAL(info) << "Average Details:" << requestRange.toString();
 
   }
 
   void packetTestShmoo(size_t numPackets, boost::asio::yield_context yield) {
     size_t stepSize = numPackets / 10;
 
-    for( size_t i = stepSize; i<=numPackets; i+= stepSize) {
-        packetTest(i, yield);
+    for( size_t i = 0; i < 100; ++i) {
+        packetTest(Range(0,32), yield);
     }
+    // for( size_t i = stepSize; i<=numPackets; i+= stepSize) {
+    //     packetTest(i, yield);
+    // }
     m_shutdown = true;
     m_socket->cancel();
 
@@ -111,7 +144,7 @@ private:
   std::atomic<uint64_t> m_nextUfid;
   std::map<uint64_t, std::function<void(std::shared_ptr<Message>)> > m_receiveCallback;
 
-  bool m_shutdown;
+  size_t m_shutdown;
 };
 
 int main(int argc, char** argv)
@@ -160,10 +193,28 @@ int main(int argc, char** argv)
     boost::asio::spawn(io_service, [&](yield_context yield) {
       client.receiveMessage(yield);
     });
-    boost::asio::spawn(io_service, [&](yield_context yield)
-    {
-      client.packetTestShmoo(vm["packets"].as<size_t>() , yield);
-    });
+
+
+    std::vector<size_t> ranges;
+    size_t requestSize = 32;
+    for( size_t i = 0; i < 10240; i += requestSize) {
+      ranges.push_back(i);
+    }
+
+    for( size_t i = 0; i < 10; i++) {
+      boost::asio::spawn(io_service, [&](yield_context yield)
+      {
+        while( !ranges.empty() ) {
+          size_t startOffset = ranges.back();
+          ranges.pop_back();
+          size_t remainingPackets = client.packetTest(Range(startOffset, startOffset + requestSize), yield);
+          if( remainingPackets > 0 ) {
+            ranges.push_back(startOffset);
+          }
+        }
+        client.shutdown();
+      });
+    }
 
     io_service.run();
   }

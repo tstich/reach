@@ -51,7 +51,7 @@ public:
                     uint8_t payloadData[packetSize];
 
                     for( int64_t packetId : message->packets() ) {
-                        throttle_timer.expires_from_now(boost::posix_time::microseconds(100));
+                        throttle_timer.expires_from_now(boost::posix_time::microseconds(50));
 
                         for( int32_t i = 0; i < packetSize; ++i) {
                             payloadData[i] = rand() % 255;

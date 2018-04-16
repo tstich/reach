@@ -14,7 +14,7 @@ Range::Range(int64_t start, int64_t end)
 Range::Range(int64_t number)
 {
 	m_intervals.push_back(Interval(number, number + 1));
-	intervalCount();	
+	intervalCount();
 }
 
 void Range::add(uint64_t number)
@@ -46,9 +46,9 @@ void Range::add(const Range &other)
 bool Range::contains(uint64_t x)
 {
 	for( Interval i : m_intervals ) {
-		if( i.first <= x && x < i.second ) 
+		if( i.first <= x && x < i.second )
 			return true;
-	}	
+	}
 
 	return false;
 }
@@ -83,7 +83,7 @@ void Range::subtract(int64_t start, int64_t end)
 				it = m_intervals.erase(it);
 			} else if (  start <= it->first && end < it->second) {
 				it->first = end;
-				it++; 
+				it++;
 			} else if ( start > it->first && it->second < end ) {
 				it->second = start;
 				it++;
@@ -113,7 +113,7 @@ void Range::mergeIntervals()
 		// Since the list of intervals is sorted, we can go greedy and consider only the
 		// next interval in the list for merging
 		auto it = m_intervals.begin() + 1;
-		while( it != m_intervals.end() ) 
+		while( it != m_intervals.end() )
 		{
 			if( (it-1)->first <= it->second && (it-1)->second >= it->first ) {
 				// BOOST_LOG_TRIVIAL(debug) << "Merge: " << (it-1)->first << ":" << (it-1)->second << " with " << it->first << ":" << it->second;
@@ -121,7 +121,7 @@ void Range::mergeIntervals()
 				(it-1)->second = std::max((it-1)->second, it->second);
 
 				// BOOST_LOG_TRIVIAL(debug) << "-> Merged: " << (it-1)->first << ":" << (it-1)->second;
-				
+
 				// Remove the merged interval
 				it = m_intervals.erase(it);
 			} else {
@@ -132,6 +132,17 @@ void Range::mergeIntervals()
 
 	intervalCount();
 }
+
+std::string Range::toString() const {
+	std::stringstream output;
+
+	for( const Interval& v : m_intervals) {
+		output << v.first << ":" << v.second << ",";
+	}
+
+	return output.str();
+}
+
 
 std::vector<boost::asio::const_buffer> Range::asBuffer() const {
 
@@ -178,7 +189,7 @@ Range Range::firstN(int64_t elements)
 	for( const Interval& v : m_intervals) {
 		int64_t deltaElements = v.second - v.first;
 		result.add(v.first, v.first + std::min<int64_t>(elements - result.elementCount(), deltaElements));
-	}	
+	}
 
 	return result;
 }
