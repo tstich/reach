@@ -56,7 +56,7 @@ public:
                     boost::asio::deadline_timer throttle_timer(socket_.get_io_service());
 
                     for( int64_t packetId : message->packets() ) {
-                        throttle_timer.expires_from_now(boost::posix_time::microseconds(100));
+                        throttle_timer.expires_from_now(boost::posix_time::microseconds(50));
                         const char* payloadData = m_fileSource->data() + (packetId * packetSize);
                         size_t payloadSize = std::min(packetSize, static_cast<size_t>(m_fileSource->size() - (packetId * packetSize)));
 

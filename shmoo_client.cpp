@@ -42,14 +42,19 @@ public:
     m_shutdown++;
     BOOST_LOG_TRIVIAL(info) << "===================================================";
     BOOST_LOG_TRIVIAL(info) << "Shutdown: " << m_shutdown;
-
     if( m_shutdown >= 10 ) {
+      double fileSize = m_fileSink->size();
+      double throughput = fileSize / duration_cast<microseconds>( high_resolution_clock::now() - m_t1 ).count();
+      BOOST_LOG_TRIVIAL(info) << "Throughput (MB/s): " << throughput;
+      
       m_socket->cancel();
     }
   }
 
 
   void fetchFileAsync(const char* path) {
+    m_t1 = high_resolution_clock::now();
+
     std::shared_ptr<std::vector<size_t> > ranges(new std::vector<size_t>());
     for( size_t i = 0; i < REQUEST_PREFETCH; i += REQUEST_SIZE) {
       ranges->push_back(i);
@@ -137,11 +142,11 @@ private:
     boost::system::error_code ec;
 
     // Request parameters
-    double received = .0;
-    std::vector<high_resolution_clock::time_point> receiveTime;
+    // double received = .0;
+    // std::vector<high_resolution_clock::time_point> receiveTime;
     boost::asio::deadline_timer timer(m_socket->get_io_service());
-    BOOST_LOG_TRIVIAL(info) << "===================================================";
-    BOOST_LOG_TRIVIAL(info) << "Sending PacketRequest: " << requestRange.elementCount() << " - " << ufid;
+    // BOOST_LOG_TRIVIAL(info) << "===================================================";
+    // BOOST_LOG_TRIVIAL(info) << "Sending PacketRequest: " << requestRange.elementCount() << " - " << ufid;
 
     // Receive Logic
     m_receiveCallback[ufid] = [&](std::shared_ptr<Message> receivedMessage)
@@ -150,9 +155,9 @@ private:
         char* dest = m_fileSink->data() + receivedMessage->packetId() * 8 * 1024;
         memcpy(dest, receivedMessage->payloadData(), receivedMessage->payloadSize());
 
-        receiveTime.push_back(high_resolution_clock::now());
+        // receiveTime.push_back(high_resolution_clock::now());
         requestRange.subtract(receivedMessage->packetId());
-        received += 1.0;
+        // received += 1.0;
         if( requestRange.elementCount() == 0) {
           timer.cancel();
         }
@@ -171,13 +176,13 @@ private:
     size_t remainingPackets = requestRange.elementCount();
     // Plot Results
 
-    BOOST_LOG_TRIVIAL(info) << "Remaining Packets: " << remainingPackets;
-    if( receiveTime.size() > 0 ) {
-      BOOST_LOG_TRIVIAL(info) << "Remaining Details:" << requestRange.toString();
-      BOOST_LOG_TRIVIAL(info) << "Latency For First:" << duration_cast<microseconds>( receiveTime.front() - t1 ).count();
-      BOOST_LOG_TRIVIAL(info) << "Latency Till Last:" << duration_cast<microseconds>( receiveTime.back() - t1 ).count();
-      BOOST_LOG_TRIVIAL(info) << "Net Throughput Till Last:" << (8 * 1024 * received) / duration_cast<microseconds>( receiveTime.back() - receiveTime.front() ).count();
-    }
+    // BOOST_LOG_TRIVIAL(info) << "Remaining Packets: " << remainingPackets;
+    // if( receiveTime.size() > 0 ) {
+    //   BOOST_LOG_TRIVIAL(info) << "Remaining Details:" << requestRange.toString();
+    //   BOOST_LOG_TRIVIAL(info) << "Latency For First:" << duration_cast<microseconds>( receiveTime.front() - t1 ).count();
+    //   BOOST_LOG_TRIVIAL(info) << "Latency Till Last:" << duration_cast<microseconds>( receiveTime.back() - t1 ).count();
+    //   BOOST_LOG_TRIVIAL(info) << "Net Throughput Till Last:" << (8 * 1024 * received) / duration_cast<microseconds>( receiveTime.back() - receiveTime.front() ).count();
+    // }
 
     return remainingPackets;
   }
@@ -214,6 +219,9 @@ private:
   std::atomic<uint64_t> m_nextReqid;
   std::map<uint64_t, std::function<void(std::shared_ptr<Message>)> > m_receiveCallback;
   std::shared_ptr<boost::iostreams::mapped_file_sink> m_fileSink;
+
+  high_resolution_clock::time_point m_t1;
+
 
   size_t m_shutdown;
 };
